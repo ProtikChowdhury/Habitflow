@@ -427,14 +427,13 @@ const appendHabitToDOM = (id, habit) => {
     const li = document.createElement('li');
     li.className = 'habit-item';
 
-    // 1. Drag Handle
-    const dragCol = document.createElement('div');
-    dragCol.className = 'drag-handle';
-    dragCol.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm8-12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/></svg>`;
-    // Simple double-click to delete since we don't have space for a delete button on desktop easily without ruining grid
-    dragCol.addEventListener('dblclick', () => deleteHabitAction(id));
-    dragCol.title = "Double click to delete";
-    li.appendChild(dragCol);
+    // 1. Delete Button
+    const delCol = document.createElement('div');
+    delCol.className = 'delete-action';
+    delCol.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+    delCol.addEventListener('click', () => deleteHabitAction(id));
+    delCol.title = "Delete this habit";
+    li.appendChild(delCol);
 
     // 2. Habit Info (Dot + Text)
     const infoCol = document.createElement('div');
