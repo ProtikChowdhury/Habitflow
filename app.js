@@ -244,20 +244,6 @@ googleBtn.addEventListener('click', async () => {
     }
 });
 
-googleBtn.addEventListener('click', async () => {
-    if (!isFirebaseInitialized) {
-        authError.textContent = "Please configure Firebase API keys first!";
-        return;
-    }
-    authError.textContent = '';
-    const provider = new GoogleAuthProvider();
-    try {
-        await signInWithPopup(auth, provider);
-    } catch (error) {
-        authError.textContent = error.message.replace('Firebase:', '');
-    }
-});
-
 logoutBtn.addEventListener('click', () => {
     if (auth) signOut(auth);
 });
