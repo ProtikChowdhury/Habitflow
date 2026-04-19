@@ -61,6 +61,7 @@ const authBtn = document.getElementById('auth-btn');
 const toggleAuthText = document.getElementById('toggle-auth');
 const authError = document.getElementById('auth-error');
 const closeAuthBtn = document.getElementById('close-auth-btn');
+const googleBtn = document.getElementById('google-auth-btn');
 
 const loginSyncBtn = document.getElementById('login-sync-btn');
 const logoutBtn = document.getElementById('logout-btn');
@@ -224,6 +225,20 @@ authForm.addEventListener('submit', async (e) => {
     } finally {
         authBtn.disabled = false;
         authBtn.textContent = isSignup ? 'Sign Up' : 'Log In';
+    }
+});
+
+googleBtn.addEventListener('click', async () => {
+    if (!isFirebaseInitialized) {
+        authError.textContent = "Please configure Firebase API keys first!";
+        return;
+    }
+    authError.textContent = '';
+    const provider = new GoogleAuthProvider();
+    try {
+        await signInWithPopup(auth, provider);
+    } catch (error) {
+        authError.textContent = error.message.replace('Firebase:', '');
     }
 });
 
