@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HabitFlow</title>
+    <!-- Fonts: Inter for minimal, premium feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="app.js"></script>
+</head>
+
+<body>
+    <!-- Abstract blurred background elements for aesthetics -->
+    <div class="bg-blur circle-1"></div>
+    <div class="bg-blur circle-2"></div>
+
+    <div class="app-container">
+
+        <!-- Main Dashboard Section -->
+        <section id="dashboard-section" class="glass-panel">
+            <header>
+                <div class="header-left">
+                    <h1 id="current-date-display">Today</h1>
+                    <p id="user-display">Local Mode (Not Syncing)</p>
+                </div>
+                <div class="header-right" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button id="login-sync-btn" class="text-btn">Sign In / Sync</button>
+                    <button id="logout-btn" class="icon-btn hidden" title="Logout">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M15 16L19 12M19 12L15 8M19 12H9M13 16V17C13 18.6569 11.6569 20 10 20H6C4.34315 20 3 18.6569 3 17V7C3 5.34315 4.34315 4 6 4H10C11.6569 4 13 5.34315 13 7V8"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <main>
+                <!-- Add Habit Input -->
+                <form id="add-habit-form">
+                    <div class="add-habit-wrapper">
+                        <input type="text" id="new-habit-input" placeholder="What new habit to build?" required
+                            autocomplete="off">
+                        <button type="submit" id="add-habit-btn">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Habits List -->
+                <div class="habits-container">
+                    <div id="loading-habits" class="loading-spinner"></div>
+                    <ul class="habits-list" id="habits-list">
+                        <!-- Habit items will be dynamically injected here -->
+                    </ul>
+                </div>
+            </main>
+        </section>
+
+        <!-- Auth Section -->
+        <section id="auth-section" class="glass-panel hidden">
+            <button id="close-auth-btn" class="close-btn" title="Back to Dashboard">✕</button>
+            <div class="auth-header">
+                <h2>HabitFlow</h2>
+                <p>Sign in to sync your local data to the cloud.</p>
+            </div>
+            <form id="auth-form">
+                <div class="input-group">
+                    <input type="email" id="email" placeholder="Email Address" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="Password" required>
+                </div>
+                <button type="submit" id="auth-btn">Log In</button>
+            </form>
+            <p class="auth-toggle">New here? <span id="toggle-auth">Create an account</span></p>
+            <div id="auth-error" class="error-msg"></div>
+
+            <div class="firebase-warning"
+                style="margin-top: 2rem; font-size: 0.8rem; color: #ffab00; border: 1px solid #ffab0040; padding: 10px; border-radius: 8px;">
+                Note: Local habits will be automatically transferred to your account once you sign up or log in.
+            </div>
+        </section>
+    </div>
+</body>
+
+</html>
