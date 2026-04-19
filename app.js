@@ -236,11 +236,13 @@ const setCloudMode = () => {
     loginSyncBtn.classList.add('hidden');
     loggedInState.classList.remove('hidden');
     
-    if (currentUser.photoURL) {
-        userAvatar.src = currentUser.photoURL;
-        userAvatar.classList.remove('hidden');
-    } else {
-        userAvatar.classList.add('hidden');
+    if (userAvatar) {
+        if (currentUser.photoURL) {
+            userAvatar.src = currentUser.photoURL;
+            userAvatar.classList.remove('hidden');
+        } else {
+            userAvatar.classList.add('hidden');
+        }
     }
     
     userDisplay.textContent = currentUser.email;
