@@ -64,7 +64,6 @@ const toggleAuthText = document.getElementById('toggle-auth');
 const authError = document.getElementById('auth-error');
 const closeAuthBtn = document.getElementById('close-auth-btn');
 const googleBtn = document.getElementById('google-auth-btn');
-const googleBtn = document.getElementById('google-auth-btn');
 
 const loginSyncBtn = document.getElementById('login-sync-btn');
 const logoutBtn = document.getElementById('logout-btn');
