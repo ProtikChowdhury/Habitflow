@@ -21,13 +21,11 @@ import {
     doc,
     serverTimestamp,
     getDocs,
-    writeBatch
+    writeBatch,
+    arrayUnion,
+    arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-// ==========================================
-// 🔴 REPLACE THIS CONFIGURATION!
-// Go to Firebase Console -> Project Settings -> General -> Web Apps
-// ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyCpPOaRQMvubDDvY2dwBsuNarAujza8GTQ",
     authDomain: "habitflow-678a6.firebaseapp.com",
@@ -49,13 +47,10 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY_HERE") {
     } catch (error) {
         console.error("Firebase not configured correctly yet. Use local mode.", error);
     }
-} else {
-    console.warn("Firebase config has dummy keys. Running in Local-Only Mode.");
 }
 
 // ==== UI Elements ====
 const authSection = document.getElementById('auth-section');
-const dashboardSection = document.getElementById('dashboard-section');
 const authForm = document.getElementById('auth-form');
 const emailInput = document.getElementById('email');
 const passwordInput = document.getElementById('password');
@@ -66,9 +61,14 @@ const closeAuthBtn = document.getElementById('close-auth-btn');
 const googleBtn = document.getElementById('google-auth-btn');
 
 const loginSyncBtn = document.getElementById('login-sync-btn');
+const loggedInState = document.getElementById('logged-in-state');
 const logoutBtn = document.getElementById('logout-btn');
 const userDisplay = document.getElementById('user-display');
-const currentDateDisplay = document.getElementById('current-date-display');
+const dateRangeDisplay = document.getElementById('date-range-display');
+
+const openAddHabitBtn = document.getElementById('open-add-habit-btn');
+const addHabitModal = document.getElementById('add-habit-modal');
+const closeAddHabitBtn = document.getElementById('close-modal-btn');
 const addHabitForm = document.getElementById('add-habit-form');
 const newHabitInput = document.getElementById('new-habit-input');
 const habitsList = document.getElementById('habits-list');
@@ -79,20 +79,90 @@ let currentUser = null;
 let currentUnsubscribe = null;
 
 const LOCAL_STORAGE_KEY = 'zen_habits_local';
+const HABIT_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#0ea5e9'];
+const DAYS_TO_SHOW = 14;
 
 // ==== UTILS ====
-const formatDate = (date) => {
-    const options = { weekday: 'long', month: 'short', day: 'numeric' };
-    return date.toLocaleDateString('en-US', options);
-};
-currentDateDisplay.textContent = formatDate(new Date());
+const pad = (n) => String(n).padStart(2, '0');
+const getDateString = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
-const getTodayString = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const getTodayString = () => getDateString(new Date());
+
+const getLast14Days = () => {
+    const dates = [];
+    for (let i = DAYS_TO_SHOW - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dates.push(getDateString(d));
+    }
+    return dates;
 };
 
-// ==== LOCAL STORAGE / OFFLINE LOGIC ====
+const getDayAbbr = (dateStr) => {
+    const d = new Date(dateStr + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { weekday: 'short' });
+};
+
+const getDayNum = (dateStr) => dateStr.split('-')[2];
+
+const getMonthAbbr = (dateStr) => {
+    const d = new Date(dateStr + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short' });
+};
+
+const updateDateRangeDisplay = () => {
+    const dates = getLast14Days();
+    const first = dates[0];
+    const last = dates[dates.length - 1];
+    dateRangeDisplay.textContent = `${getMonthAbbr(first)} ${getDayNum(first)} - ${getMonthAbbr(last)} ${getDayNum(last)}, ${new Date().getFullYear()}`;
+};
+
+const migrateHabitData = (h) => {
+    if (h.completedDates === undefined) {
+        h.completedDates = [];
+        if (h.completed && h.completedDate) h.completedDates.push(h.completedDate);
+        delete h.completed; delete h.completedDate;
+    }
+    if (!h.color) {
+        h.color = HABIT_COLORS[Math.floor(Math.random() * HABIT_COLORS.length)];
+    }
+    return h;
+};
+
+const computeStreak = (completedDates) => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    let streak = 0;
+    let currDate = new Date(today);
+
+    // If today is not checked and yesterday is not checked, streak is 0
+    if (!completedDates.includes(getDateString(today)) && !completedDates.includes(getDateString(yesterday))) {
+        return 0;
+    }
+
+    // Start counting backwards.
+    // Allow today to be missed, so start from yesterday, but if today is checked, add 1.
+    if (completedDates.includes(getDateString(currDate))) {
+        streak++;
+    }
+    
+    currDate.setDate(currDate.getDate() - 1);
+    
+    while (true) {
+        if (completedDates.includes(getDateString(currDate))) {
+            streak++;
+            currDate.setDate(currDate.getDate() - 1);
+        } else {
+            break;
+        }
+    }
+    return streak;
+};
+
+// ==== LOCAL STORAGE ====
 const getLocalHabits = () => {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -109,31 +179,29 @@ const migrateLocalToFirebase = async (uid) => {
     try {
         const batch = writeBatch(db);
         habits.forEach(h => {
+            const migrated = migrateHabitData({...h});
             const newRef = doc(collection(db, "habits"));
             batch.set(newRef, {
                 userId: uid,
-                task: h.task,
-                completed: h.completed,
-                createdAt: serverTimestamp(),
-                completedDate: h.completedDate
+                task: migrated.task,
+                completedDates: migrated.completedDates,
+                color: migrated.color,
+                createdAt: serverTimestamp()
             });
         });
         await batch.commit();
         localStorage.removeItem(LOCAL_STORAGE_KEY);
-        console.log("Migrated local habits to Firebase.");
     } catch (e) {
         console.error("Migration failed", e);
     }
 };
 
-const checkAndResetLocalDailyHabits = () => {
-    const todayStr = getTodayString();
+const checkAndMigrateLocalHabits = () => {
     const habits = getLocalHabits();
     let needsUpdate = false;
     habits.forEach(h => {
-        if (h.completed && h.completedDate !== todayStr) {
-            h.completed = false;
-            h.completedDate = null;
+        if (h.completedDates === undefined || !h.color) {
+            migrateHabitData(h);
             needsUpdate = true;
         }
     });
@@ -142,35 +210,38 @@ const checkAndResetLocalDailyHabits = () => {
 
 // ==== NAVIGATION & SETUP ====
 loginSyncBtn.addEventListener('click', () => {
-    dashboardSection.classList.add('hidden');
     authSection.classList.remove('hidden');
 });
 
 closeAuthBtn.addEventListener('click', () => {
     authSection.classList.add('hidden');
-    dashboardSection.classList.remove('hidden');
+});
+
+openAddHabitBtn.addEventListener('click', () => {
+    addHabitModal.classList.remove('hidden');
+    newHabitInput.focus();
+});
+
+closeAddHabitBtn.addEventListener('click', () => {
+    addHabitModal.classList.add('hidden');
 });
 
 const loadInitialLocalState = () => {
-    checkAndResetLocalDailyHabits();
+    checkAndMigrateLocalHabits();
     renderLocalHabits();
 };
 
 const setCloudMode = () => {
     loginSyncBtn.classList.add('hidden');
-    logoutBtn.classList.remove('hidden');
+    loggedInState.classList.remove('hidden');
     userDisplay.textContent = currentUser.email;
     subscribeToHabits();
 };
 
 const setLocalMode = () => {
     loginSyncBtn.classList.remove('hidden');
-    logoutBtn.classList.add('hidden');
-    userDisplay.textContent = "Local Mode (Not Syncing)";
-    if (currentUnsubscribe) {
-        currentUnsubscribe();
-        currentUnsubscribe = null;
-    }
+    loggedInState.classList.add('hidden');
+    if (currentUnsubscribe) { currentUnsubscribe(); currentUnsubscribe = null; }
     loadInitialLocalState();
 };
 
@@ -178,143 +249,113 @@ if (isFirebaseInitialized) {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             currentUser = user;
-            // On sign in, migrate any pending local data to user's account
             await migrateLocalToFirebase(user.uid);
-            checkAndResetDailyHabits();
             setCloudMode();
-            // Automatically close auth panel if it was open
             authSection.classList.add('hidden');
-            dashboardSection.classList.remove('hidden');
         } else {
             currentUser = null;
             setLocalMode();
         }
     });
 } else {
-    // Purely local execution if firebase isn't setup
     setLocalMode();
 }
 
-// ==== AUTHENTICATION EVENTS ====
+// ==== AUTH EVENTS ====
 toggleAuthText.addEventListener('click', () => {
     isSignup = !isSignup;
     authBtn.textContent = isSignup ? 'Sign Up' : 'Log In';
     toggleAuthText.textContent = isSignup ? 'Log in instead' : 'Create an account';
-    document.querySelector('.auth-header h2').textContent = isSignup ? 'Join HabitFlow' : 'HabitFlow';
-    document.querySelector('.auth-header p').textContent = isSignup ? 'Sign up to sync your local data to the cloud.' : 'Sign in to sync your local data to the cloud.';
+    document.querySelector('.auth-header h2').textContent = isSignup ? 'Create Account' : 'Sync Tracker';
     authError.textContent = '';
 });
 
 authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!isFirebaseInitialized) {
-        authError.textContent = "Please configure Firebase API keys in app.js!";
-        return;
-    }
-
-    authError.textContent = '';
+    if (!isFirebaseInitialized) return;
     authBtn.disabled = true;
-    authBtn.textContent = 'Processing...';
-
     try {
-        if (isSignup) {
-            await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
-        } else {
-            await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
-        }
+        if (isSignup) await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+        else await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
     } catch (error) {
         authError.textContent = error.message.replace('Firebase:', '');
     } finally {
         authBtn.disabled = false;
-        authBtn.textContent = isSignup ? 'Sign Up' : 'Log In';
     }
 });
 
 googleBtn.addEventListener('click', async () => {
-    if (!isFirebaseInitialized) {
-        authError.textContent = "Please configure Firebase API keys first!";
-        return;
-    }
-    authError.textContent = '';
-    const provider = new GoogleAuthProvider();
+    if (!isFirebaseInitialized) return;
     try {
-        await signInWithPopup(auth, provider);
+        await signInWithPopup(auth, new GoogleAuthProvider());
     } catch (error) {
         authError.textContent = error.message.replace('Firebase:', '');
     }
 });
 
-logoutBtn.addEventListener('click', () => {
-    if (auth) signOut(auth);
-});
+logoutBtn.addEventListener('click', () => { if (auth) signOut(auth); });
 
-// ==== HABITS LOGIC: ROUTING LOCAL VS DB ====
+// ==== HABITS LOGIC ====
 addHabitForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const task = newHabitInput.value.trim();
     if (!task) return;
 
+    const color = HABIT_COLORS[Math.floor(Math.random() * HABIT_COLORS.length)];
     newHabitInput.value = '';
+    addHabitModal.classList.add('hidden');
 
     if (currentUser) {
-        const addBtn = document.getElementById('add-habit-btn');
-        addBtn.disabled = true;
         try {
             await addDoc(collection(db, "habits"), {
                 userId: currentUser.uid,
                 task: task,
-                completed: false,
-                createdAt: serverTimestamp(),
-                completedDate: null
+                completedDates: [],
+                color: color,
+                createdAt: serverTimestamp()
             });
-        } catch (error) {
-            console.error("Error adding habit: ", error);
-        } finally {
-            addBtn.disabled = false;
-        }
+        } catch (error) { console.error(error); }
     } else {
-        // Local add
         const habits = getLocalHabits();
         habits.push({
             id: 'local_' + Date.now().toString(),
             task: task,
-            completed: false,
-            createdAt: Date.now(),
-            completedDate: null
+            completedDates: [],
+            color: color,
+            createdAt: Date.now()
         });
         saveLocalHabits(habits);
         renderLocalHabits();
     }
 });
 
-const toggleHabitAction = async (id, isCompleted) => {
+const toggleHabitAction = async (id, dateStr, isCompleted) => {
     if (currentUser) {
         const habitRef = doc(db, "habits", id);
         try {
             await updateDoc(habitRef, {
-                completed: isCompleted,
-                completedDate: isCompleted ? getTodayString() : null
+                completedDates: isCompleted ? arrayUnion(dateStr) : arrayRemove(dateStr)
             });
         } catch (e) { console.error(e); }
     } else {
         const habits = getLocalHabits();
         const h = habits.find(h => h.id === id);
         if (h) {
-            h.completed = isCompleted;
-            h.completedDate = isCompleted ? getTodayString() : null;
+            if (isCompleted) {
+                if (!h.completedDates.includes(dateStr)) h.completedDates.push(dateStr);
+            } else {
+                h.completedDates = h.completedDates.filter(d => d !== dateStr);
+            }
             saveLocalHabits(habits);
+            renderLocalHabits();
         }
     }
 };
 
 const deleteHabitAction = async (id) => {
-    if (!confirm("Are you sure you want to delete this habit?")) return;
-
+    if (!confirm("Delete this habit?")) return;
     if (currentUser) {
-        const habitRef = doc(db, "habits", id);
-        try {
-            await deleteDoc(habitRef);
-        } catch (e) { console.error(e); }
+        try { await deleteDoc(doc(db, "habits", id)); } catch (e) { console.error(e); }
     } else {
         let habits = getLocalHabits();
         habits = habits.filter(h => h.id !== id);
@@ -324,97 +365,119 @@ const deleteHabitAction = async (id) => {
 };
 
 // ==== RENDERING ====
+const renderChartHeader = () => {
+    updateDateRangeDisplay();
+    const chartHeader = document.getElementById('chart-header');
+    if (!chartHeader) return;
+    
+    // Grid: drag(1) + habitname(1) + trophy(1) + flame(1) = 4 empty columns before days
+    let html = `
+        <div class="header-empty"></div>
+        <div class="header-empty"></div>
+        <div class="header-empty"></div>
+        <div class="header-empty"></div>
+    `;
+    
+    const last14 = getLast14Days();
+    last14.forEach(d => {
+        html += `
+        <div class="header-day">
+            <span class="day-name">${getDayAbbr(d)}</span>
+            <span class="day-num">${getDayNum(d)}</span>
+        </div>`;
+    });
+    chartHeader.innerHTML = html;
+};
+
 const renderLocalHabits = () => {
+    renderChartHeader();
     habitsList.innerHTML = '';
     const habits = getLocalHabits();
     if (habits.length === 0) {
-        habitsList.innerHTML = `<div class="empty-state">No habits tracked yet.<br>Start by adding one above!</div>`;
+        habitsList.innerHTML = `<div class="empty-state">No habits tracked yet. Start by adding one!</div>`;
         return;
     }
-    // Sort oldest first roughly
     habits.forEach(h => appendHabitToDOM(h.id, h));
 };
 
 const subscribeToHabits = () => {
+    renderChartHeader();
     loadingSpinner.style.display = 'block';
-    const q = query(
-        collection(db, "habits"),
-        where("userId", "==", currentUser.uid),
-        orderBy("createdAt", "asc")
-    );
+    const q = query(collection(db, "habits"), where("userId", "==", currentUser.uid), orderBy("createdAt", "asc"));
 
     currentUnsubscribe = onSnapshot(q, (snapshot) => {
         loadingSpinner.style.display = 'none';
         habitsList.innerHTML = '';
-
         if (snapshot.empty) {
-            habitsList.innerHTML = `<div class="empty-state">No habits tracked yet.<br>Start by adding one above!</div>`;
+            habitsList.innerHTML = `<div class="empty-state">No habits tracked yet. Start by adding one!</div>`;
             return;
         }
-
-        snapshot.forEach((doc) => {
-            appendHabitToDOM(doc.id, doc.data());
-        });
-    }, (error) => {
-        console.error("Listener error", error);
-        loadingSpinner.style.display = 'none';
+        snapshot.forEach((docSnap) => appendHabitToDOM(docSnap.id, docSnap.data()));
     });
 };
 
 const appendHabitToDOM = (id, habit) => {
-    const li = document.createElement('li');
-    li.className = `habit-item ${habit.completed ? 'completed' : ''}`;
-
-    const checkWrap = document.createElement('label');
-    checkWrap.className = 'checkbox-wrapper';
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = habit.completed;
-    checkbox.addEventListener('change', () => toggleHabitAction(id, checkbox.checked));
-
-    const checkmark = document.createElement('span');
-    checkmark.className = 'checkmark';
-
-    checkWrap.appendChild(checkbox);
-    checkWrap.appendChild(checkmark);
-
-    const textSpan = document.createElement('span');
-    textSpan.className = 'habit-text';
-    textSpan.textContent = habit.task;
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'delete-btn';
-    delBtn.innerHTML = `
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-    `;
-    delBtn.addEventListener('click', () => deleteHabitAction(id));
-
-    li.appendChild(checkWrap);
-    li.appendChild(textSpan);
-    li.appendChild(delBtn);
-    habitsList.appendChild(li);
-};
-
-// Cloud daily reset logic
-const checkAndResetDailyHabits = async () => {
-    if (!currentUser) return;
+    habit = migrateHabitData(habit);
+    const last14 = getLast14Days();
     const todayStr = getTodayString();
+    
+    const streak = computeStreak(habit.completedDates);
+    const total = habit.completedDates.length;
 
-    const q = query(collection(db, "habits"), where("userId", "==", currentUser.uid));
-    const snapshot = await getDocs(q);
-    const batch = writeBatch(db);
-    let needsUpdate = false;
+    const li = document.createElement('li');
+    li.className = 'habit-item';
 
-    snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        if (data.completed && data.completedDate !== todayStr) {
-            batch.update(docSnap.ref, { completed: false, completedDate: null });
-            needsUpdate = true;
+    // 1. Drag Handle
+    const dragCol = document.createElement('div');
+    dragCol.className = 'drag-handle';
+    dragCol.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm8-12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/></svg>`;
+    // Simple double-click to delete since we don't have space for a delete button on desktop easily without ruining grid
+    dragCol.addEventListener('dblclick', () => deleteHabitAction(id));
+    dragCol.title = "Double click to delete";
+    li.appendChild(dragCol);
+
+    // 2. Habit Info (Dot + Text)
+    const infoCol = document.createElement('div');
+    infoCol.className = 'habit-info';
+    infoCol.innerHTML = `<div class="color-dot" style="background-color: ${habit.color}"></div><span class="habit-text">${habit.task}</span>`;
+    li.appendChild(infoCol);
+
+    // 3. Trophy (Total)
+    const trophyCol = document.createElement('div');
+    trophyCol.className = 'stat-col trophy';
+    trophyCol.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10c1.7 0 3 1.3 3 3v2c0 2.8-2.2 5-5 5H9c-2.8 0-5-2.2-5-5V7c0-1.7 1.3-3 3-3z"/></svg> <span>${total}</span>`;
+    li.appendChild(trophyCol);
+
+    // 4. Flame (Streak)
+    const flameCol = document.createElement('div');
+    flameCol.className = 'stat-col flame';
+    flameCol.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> <span>${streak}</span>`;
+    li.appendChild(flameCol);
+
+    // 5-18. 14 Days Checkboxes
+    last14.forEach(dateStr => {
+        const isToday = dateStr === todayStr;
+        const isChecked = habit.completedDates.includes(dateStr);
+        
+        const checkWrap = document.createElement('label');
+        checkWrap.className = `checkbox-wrapper ${isToday ? 'today-col' : ''}`;
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = isChecked;
+        checkbox.addEventListener('change', () => toggleHabitAction(id, dateStr, checkbox.checked));
+
+        const circle = document.createElement('span');
+        circle.className = `circle-mark active-color`;
+        // Apply color dynamically when checked
+        if (isChecked) {
+            circle.style.backgroundColor = habit.color;
         }
+
+        checkWrap.appendChild(checkbox);
+        checkWrap.appendChild(circle);
+        li.appendChild(checkWrap);
     });
 
-    if (needsUpdate) await batch.commit();
+    habitsList.appendChild(li);
 };
