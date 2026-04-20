@@ -1,31 +1,3 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import {
-    getAuth,
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    onAuthStateChanged,
-    signOut,
-    GoogleAuthProvider,
-    signInWithPopup
-} from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-import {
-    getFirestore,
-    collection,
-    addDoc,
-    query,
-    where,
-    orderBy,
-    onSnapshot,
-    updateDoc,
-    deleteDoc,
-    doc,
-    serverTimestamp,
-    getDocs,
-    writeBatch,
-    arrayUnion,
-    arrayRemove
-} from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-
 const firebaseConfig = {
     apiKey: "AIzaSyCpPOaRQMvubDDvY2dwBsuNarAujza8GTQ",
     authDomain: "habitflow-678a6.firebaseapp.com",
@@ -40,9 +12,9 @@ let isFirebaseInitialized = false;
 
 if (firebaseConfig.apiKey !== "YOUR_API_KEY_HERE") {
     try {
-        app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        db = getFirestore(app);
+        app = firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
         isFirebaseInitialized = true;
     } catch (error) {
         console.error("Firebase not configured correctly yet. Use local mode.", error);
@@ -178,16 +150,16 @@ const migrateLocalToFirebase = async (uid) => {
     if (habits.length === 0) return;
 
     try {
-        const batch = writeBatch(db);
+        const batch = db.batch();
         habits.forEach(h => {
             const migrated = migrateHabitData({...h});
-            const newRef = doc(collection(db, "habits"));
+            const newRef = db.collection("habits").doc();
             batch.set(newRef, {
                 userId: uid,
                 task: migrated.task,
                 completedDates: migrated.completedDates,
                 color: migrated.color,
-                createdAt: serverTimestamp()
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
         await batch.commit();
@@ -257,7 +229,7 @@ const setLocalMode = () => {
 };
 
 if (isFirebaseInitialized) {
-    onAuthStateChanged(auth, async (user) => {
+    auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
             await migrateLocalToFirebase(user.uid);
@@ -286,8 +258,8 @@ authForm.addEventListener('submit', async (e) => {
     if (!isFirebaseInitialized) return;
     authBtn.disabled = true;
     try {
-        if (isSignup) await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
-        else await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+        if (isSignup) await auth.createUserWithEmailAndPassword(emailInput.value, passwordInput.value);
+        else await auth.signInWithEmailAndPassword(emailInput.value, passwordInput.value);
     } catch (error) {
         authError.textContent = error.message.replace('Firebase:', '');
     } finally {
@@ -298,13 +270,13 @@ authForm.addEventListener('submit', async (e) => {
 googleBtn.addEventListener('click', async () => {
     if (!isFirebaseInitialized) return;
     try {
-        await signInWithPopup(auth, new GoogleAuthProvider());
+        await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
     } catch (error) {
         authError.textContent = error.message.replace('Firebase:', '');
     }
 });
 
-logoutBtn.addEventListener('click', () => { if (auth) signOut(auth); });
+logoutBtn.addEventListener('click', () => { if (auth) auth.signOut(); });
 
 // ==== HABITS LOGIC ====
 addHabitForm.addEventListener('submit', async (e) => {
@@ -318,12 +290,12 @@ addHabitForm.addEventListener('submit', async (e) => {
 
     if (currentUser) {
         try {
-            await addDoc(collection(db, "habits"), {
+            await db.collection("habits").add({
                 userId: currentUser.uid,
                 task: task,
                 completedDates: [],
                 color: color,
-                createdAt: serverTimestamp()
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         } catch (error) { console.error(error); }
     } else {
@@ -342,10 +314,10 @@ addHabitForm.addEventListener('submit', async (e) => {
 
 const toggleHabitAction = async (id, dateStr, isCompleted) => {
     if (currentUser) {
-        const habitRef = doc(db, "habits", id);
+        const habitRef = db.collection("habits").doc(id);
         try {
-            await updateDoc(habitRef, {
-                completedDates: isCompleted ? arrayUnion(dateStr) : arrayRemove(dateStr)
+            await habitRef.update({
+                completedDates: isCompleted ? firebase.firestore.FieldValue.arrayUnion(dateStr) : firebase.firestore.FieldValue.arrayRemove(dateStr)
             });
         } catch (e) { console.error(e); }
     } else {
@@ -366,7 +338,7 @@ const toggleHabitAction = async (id, dateStr, isCompleted) => {
 const deleteHabitAction = async (id) => {
     if (!confirm("Delete this habit?")) return;
     if (currentUser) {
-        try { await deleteDoc(doc(db, "habits", id)); } catch (e) { console.error(e); }
+        try { await db.collection("habits").doc(id).delete(); } catch (e) { console.error(e); }
     } else {
         let habits = getLocalHabits();
         habits = habits.filter(h => h.id !== id);
@@ -414,9 +386,9 @@ const renderLocalHabits = () => {
 const subscribeToHabits = () => {
     renderChartHeader();
     loadingSpinner.style.display = 'block';
-    const q = query(collection(db, "habits"), where("userId", "==", currentUser.uid), orderBy("createdAt", "asc"));
+    const q = db.collection("habits").where("userId", "==", currentUser.uid).orderBy("createdAt", "asc");
 
-    currentUnsubscribe = onSnapshot(q, (snapshot) => {
+    currentUnsubscribe = q.onSnapshot((snapshot) => {
         loadingSpinner.style.display = 'none';
         habitsList.innerHTML = '';
         if (snapshot.empty) {
