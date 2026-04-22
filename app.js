@@ -232,7 +232,18 @@ const setLocalMode = () => {
 };
 
 if (isFirebaseInitialized) {
+    // Fallback: If auth state doesn't resolve in 2s, assume local mode
+    let authResolved = false;
+    const authTimeout = setTimeout(() => {
+        if (!authResolved) {
+            console.warn("Auth state resolution timed out. Falling back to local mode.");
+            setLocalMode();
+        }
+    }, 2000);
+
     auth.onAuthStateChanged(async (user) => {
+        authResolved = true;
+        clearTimeout(authTimeout);
         if (user) {
             currentUser = user;
             await migrateLocalToFirebase(user.uid);
