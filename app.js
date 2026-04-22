@@ -15,6 +15,9 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY_HERE") {
         app = firebase.initializeApp(firebaseConfig);
         auth = firebase.auth();
         db = firebase.firestore();
+        db.enablePersistence().catch((err) => {
+            console.warn("Firestore offline persistence conditionally failed", err);
+        });
         isFirebaseInitialized = true;
     } catch (error) {
         console.error("Firebase not configured correctly yet. Use local mode.", error);
@@ -388,15 +391,26 @@ const subscribeToHabits = () => {
     loadingSpinner.style.display = 'block';
     const q = db.collection("habits").where("userId", "==", currentUser.uid).orderBy("createdAt", "asc");
 
-    currentUnsubscribe = q.onSnapshot((snapshot) => {
-        loadingSpinner.style.display = 'none';
-        habitsList.innerHTML = '';
-        if (snapshot.empty) {
-            habitsList.innerHTML = `<div class="empty-state">No habits tracked yet. Start by adding one!</div>`;
-            return;
+    currentUnsubscribe = q.onSnapshot(
+        (snapshot) => {
+            loadingSpinner.style.display = 'none';
+            habitsList.innerHTML = '';
+            if (snapshot.empty) {
+                habitsList.innerHTML = `<div class="empty-state">No habits tracked yet. Start by adding one!</div>`;
+                return;
+            }
+            snapshot.forEach((docSnap) => appendHabitToDOM(docSnap.id, docSnap.data()));
+        },
+        (error) => {
+            console.error("Error fetching habits from cloud. Falling back to local mode.", error);
+            loadingSpinner.style.display = 'none';
+            
+            // Revert state back to local mode if blocked by browser/ad-blocker
+            currentUser = null;
+            if (auth) auth.signOut();
+            setLocalMode();
         }
-        snapshot.forEach((docSnap) => appendHabitToDOM(docSnap.id, docSnap.data()));
-    });
+    );
 };
 
 const appendHabitToDOM = (id, habit) => {
