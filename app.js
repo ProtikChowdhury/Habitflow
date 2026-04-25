@@ -37,8 +37,6 @@ const googleBtn = document.getElementById('google-auth-btn');
 
 const loginSyncBtn = document.getElementById('login-sync-btn');
 const loggedInState = document.getElementById('logged-in-state');
-const logoutBtn = document.getElementById('logout-btn');
-const userDisplay = document.getElementById('user-display');
 const userAvatar = document.getElementById('user-avatar');
 const dateRangeDisplay = document.getElementById('date-range-display');
 
@@ -213,16 +211,10 @@ const setCloudMode = () => {
     loginSyncBtn.classList.add('hidden');
     loggedInState.classList.remove('hidden');
     
-    if (userAvatar) {
-        if (currentUser.photoURL) {
-            userAvatar.src = currentUser.photoURL;
-            userAvatar.classList.remove('hidden');
-        } else {
-            userAvatar.classList.add('hidden');
-        }
+    if (userAvatar && currentUser.photoURL) {
+        userAvatar.src = currentUser.photoURL;
     }
     
-    userDisplay.textContent = currentUser.email;
     subscribeToHabits();
 };
 
@@ -292,7 +284,12 @@ googleBtn.addEventListener('click', async () => {
     }
 });
 
-logoutBtn.addEventListener('click', () => { if (auth) auth.signOut(); });
+userAvatar.addEventListener('click', () => {
+    if (confirm("Sign out and log in with a different account?")) {
+        if (auth) auth.signOut();
+        authSection.classList.remove('hidden');
+    }
+});
 
 // ==== HABITS LOGIC ====
 addHabitForm.addEventListener('submit', async (e) => {
