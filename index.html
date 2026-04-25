@@ -41,9 +41,9 @@
             <header class="panel-header">
                 <button id="open-add-habit-btn" class="pill-btn primary-pill">+ Add habit</button>
                 <div class="date-range-nav">
-                    <button class="nav-arrow" disabled>&lt;</button>
+                    <button id="prev-date-range" class="nav-arrow">&lt;</button>
                     <span id="date-range-display">Loading...</span>
-                    <button class="nav-arrow" disabled>&gt;</button>
+                    <button id="next-date-range" class="nav-arrow" disabled>&gt;</button>
                 </div>
             </header>
 
@@ -113,6 +113,28 @@
             <div style="display: flex; gap: 10px; justify-content: center;">
                 <button id="confirm-modal-cancel" class="pill-btn light-pill" style="flex: 1;">Cancel</button>
                 <button id="confirm-modal-ok" class="pill-btn primary-pill" style="flex: 1;">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Calendar View -->
+    <div id="calendar-modal" class="modal hidden">
+        <div class="modal-content dark-panel calendar-modal-content">
+            <button id="close-calendar-btn" class="close-btn">✕</button>
+            <div class="calendar-header-view">
+                <div class="habit-selector-nav">
+                    <button id="prev-habit-btn" class="nav-arrow">&lt;</button>
+                    <h3 id="calendar-habit-name">Habit Name</h3>
+                    <button id="next-habit-btn" class="nav-arrow">&gt;</button>
+                </div>
+                <div class="calendar-month-nav">
+                    <button id="calendar-prev-month" class="nav-arrow">&lt;</button>
+                    <span id="calendar-month-year">Month Year</span>
+                    <button id="calendar-next-month" class="nav-arrow">&gt;</button>
+                </div>
+            </div>
+            <div id="calendar-grid-container" class="calendar-grid">
+                <!-- Calendar days will be injected here -->
             </div>
         </div>
     </div>

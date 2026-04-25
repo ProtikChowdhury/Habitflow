@@ -39,6 +39,8 @@ const loginSyncBtn = document.getElementById('login-sync-btn');
 const loggedInState = document.getElementById('logged-in-state');
 const userAvatar = document.getElementById('user-avatar');
 const dateRangeDisplay = document.getElementById('date-range-display');
+const prevDateBtn = document.getElementById('prev-date-range');
+const nextDateBtn = document.getElementById('next-date-range');
 
 const openAddHabitBtn = document.getElementById('open-add-habit-btn');
 const addHabitModal = document.getElementById('add-habit-modal');
@@ -51,6 +53,16 @@ const confirmModal = document.getElementById('confirm-modal');
 const confirmModalMessage = document.getElementById('confirm-modal-message');
 const confirmModalCancel = document.getElementById('confirm-modal-cancel');
 const confirmModalOk = document.getElementById('confirm-modal-ok');
+
+const calendarModal = document.getElementById('calendar-modal');
+const closeCalendarBtn = document.getElementById('close-calendar-btn');
+const calendarHabitName = document.getElementById('calendar-habit-name');
+const calendarMonthYear = document.getElementById('calendar-month-year');
+const calendarGrid = document.getElementById('calendar-grid-container');
+const prevHabitBtn = document.getElementById('prev-habit-btn');
+const nextHabitBtn = document.getElementById('next-habit-btn');
+const prevMonthBtn = document.getElementById('calendar-prev-month');
+const nextMonthBtn = document.getElementById('calendar-next-month');
 
 let currentConfirmResolve = null;
 
@@ -80,6 +92,10 @@ let currentUnsubscribe = null;
 const LOCAL_STORAGE_KEY = 'zen_habits_local';
 const HABIT_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#0ea5e9'];
 const DAYS_TO_SHOW = 14;
+let currentOffset = 0; // Days back from today
+let calendarViewDate = new Date();
+let currentCalendarHabitId = null;
+let currentHabitsList = []; // Local copy for navigation
 
 // ==== UTILS ====
 const pad = (n) => String(n).padStart(2, '0');
@@ -87,11 +103,11 @@ const getDateString = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1
 
 const getTodayString = () => getDateString(new Date());
 
-const getLast14Days = () => {
+const getLast14Days = (offset = 0) => {
     const dates = [];
     for (let i = DAYS_TO_SHOW - 1; i >= 0; i--) {
         const d = new Date();
-        d.setDate(d.getDate() - i);
+        d.setDate(d.getDate() - i - offset);
         dates.push(getDateString(d));
     }
     return dates;
@@ -110,11 +126,35 @@ const getMonthAbbr = (dateStr) => {
 };
 
 const updateDateRangeDisplay = () => {
-    const dates = getLast14Days();
+    const dates = getLast14Days(currentOffset);
     const first = dates[0];
     const last = dates[dates.length - 1];
-    dateRangeDisplay.textContent = `${getMonthAbbr(first)} ${getDayNum(first)} - ${getMonthAbbr(last)} ${getDayNum(last)}, ${new Date().getFullYear()}`;
+    
+    // Check if we are in the same year, else show years for both
+    const firstDate = new Date(first + 'T12:00:00');
+    const lastDate = new Date(last + 'T12:00:00');
+    
+    if (firstDate.getFullYear() === lastDate.getFullYear()) {
+        dateRangeDisplay.textContent = `${getMonthAbbr(first)} ${getDayNum(first)} - ${getMonthAbbr(last)} ${getDayNum(last)}, ${firstDate.getFullYear()}`;
+    } else {
+        dateRangeDisplay.textContent = `${getMonthAbbr(first)} ${getDayNum(first)}, ${firstDate.getFullYear()} - ${getMonthAbbr(last)} ${getDayNum(last)}, ${lastDate.getFullYear()}`;
+    }
+    
+    // Enable/disable arrows based on offset
+    const prevBtn = document.querySelector('.nav-arrow:first-child');
+    const nextBtn = document.querySelector('.nav-arrow:last-child');
+    if (prevBtn && nextBtn) {
+        nextBtn.disabled = currentOffset === 0;
+    }
 };
+
+dateRangeDisplay.style.cursor = 'pointer';
+dateRangeDisplay.addEventListener('click', () => {
+    const habits = currentUser ? currentHabitsList : getLocalHabits();
+    if (habits.length > 0) {
+        openCalendarView(habits[0].id || habits[0].userId + habits[0].createdAt); // Fallback ID
+    }
+});
 
 const migrateHabitData = (h) => {
     if (h.completedDates === undefined) {
@@ -229,6 +269,54 @@ openAddHabitBtn.addEventListener('click', () => {
 closeAddHabitBtn.addEventListener('click', () => {
     addHabitModal.classList.add('hidden');
 });
+
+prevDateBtn.addEventListener('click', () => {
+    currentOffset += 14;
+    refreshDashboard();
+});
+
+nextDateBtn.addEventListener('click', () => {
+    currentOffset = Math.max(0, currentOffset - 14);
+    refreshDashboard();
+});
+
+closeCalendarBtn.addEventListener('click', () => {
+    calendarModal.classList.add('hidden');
+});
+
+prevHabitBtn.addEventListener('click', () => {
+    navigateHabit(-1);
+});
+
+nextHabitBtn.addEventListener('click', () => {
+    navigateHabit(1);
+});
+
+prevMonthBtn.addEventListener('click', () => {
+    calendarViewDate.setMonth(calendarViewDate.getMonth() - 1);
+    renderCalendar();
+});
+
+nextMonthBtn.addEventListener('click', () => {
+    calendarViewDate.setMonth(calendarViewDate.getMonth() + 1);
+    renderCalendar();
+});
+
+const navigateHabit = (dir) => {
+    const habits = currentUser ? currentHabitsList : getLocalHabits();
+    const index = habits.findIndex(h => (h.id || h.userId + h.createdAt) === currentCalendarHabitId);
+    if (index === -1) return;
+    let nextIndex = (index + dir + habits.length) % habits.length;
+    openCalendarView(habits[nextIndex].id || habits[nextIndex].userId + habits[nextIndex].createdAt);
+};
+
+const refreshDashboard = () => {
+    if (currentUser) {
+        subscribeToHabits();
+    } else {
+        renderLocalHabits();
+    }
+};
 
 const loadInitialLocalState = () => {
     checkAndMigrateLocalHabits();
@@ -406,7 +494,7 @@ const renderChartHeader = () => {
         <div class="header-empty"></div>
     `;
     
-    const last14 = getLast14Days();
+    const last14 = getLast14Days(currentOffset);
     last14.forEach(d => {
         html += `
         <div class="header-day">
@@ -417,10 +505,61 @@ const renderChartHeader = () => {
     chartHeader.innerHTML = html;
 };
 
+const openCalendarView = (habitId) => {
+    currentCalendarHabitId = habitId;
+    calendarViewDate = new Date();
+    calendarModal.classList.remove('hidden');
+    renderCalendar();
+};
+
+const renderCalendar = () => {
+    const habits = currentUser ? currentHabitsList : getLocalHabits();
+    const habit = habits.find(h => (h.id || h.userId + h.createdAt) === currentCalendarHabitId);
+    if (!habit) return;
+
+    calendarHabitName.textContent = habit.task;
+    calendarHabitName.style.color = habit.color;
+
+    const year = calendarViewDate.getFullYear();
+    const month = calendarViewDate.getMonth();
+    calendarMonthYear.textContent = `${new Intl.DateTimeFormat('en-US', { month: 'long' }).format(calendarViewDate)} ${year}`;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    let html = '';
+    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayLabels.forEach(label => {
+        html += `<div class="calendar-day-header">${label}</div>`;
+    });
+
+    for (let i = 0; i < firstDay; i++) {
+        html += `<div class="calendar-day empty"></div>`;
+    }
+
+    const todayStr = getTodayString();
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = getDateString(new Date(year, month, day));
+        const isCompleted = habit.completedDates.includes(dateStr);
+        const isToday = dateStr === todayStr;
+        
+        html += `
+            <div class="calendar-day ${isCompleted ? 'completed' : ''} ${isToday ? 'today' : ''}" 
+                 style="${isCompleted ? `background-color: ${habit.color}44; border-color: ${habit.color};` : ''}">
+                ${day}
+                ${isCompleted ? `<div class="calendar-dot" style="background-color: ${habit.color}"></div>` : ''}
+            </div>
+        `;
+    }
+
+    calendarGrid.innerHTML = html;
+};
+
 const renderLocalHabits = () => {
     renderChartHeader();
     habitsList.innerHTML = '';
     const habits = getLocalHabits();
+    currentHabitsList = habits;
     if (habits.length === 0) {
         habitsList.innerHTML = `<div class="empty-state">No habits tracked yet. Start by adding one!</div>`;
         return;
@@ -451,11 +590,17 @@ const subscribeToHabits = () => {
             clearTimeout(snapshotTimeout);
             loadingSpinner.style.display = 'none';
             habitsList.innerHTML = '';
+            currentHabitsList = [];
             if (snapshot.empty) {
                 habitsList.innerHTML = `<div class="empty-state">No habits tracked yet. Start by adding one!</div>`;
                 return;
             }
-            snapshot.forEach((docSnap) => appendHabitToDOM(docSnap.id, docSnap.data()));
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                data.id = docSnap.id;
+                currentHabitsList.push(data);
+                appendHabitToDOM(docSnap.id, data);
+            });
         },
         (error) => {
             snapshotResolved = true;
@@ -473,7 +618,7 @@ const subscribeToHabits = () => {
 
 const appendHabitToDOM = (id, habit) => {
     habit = migrateHabitData(habit);
-    const last14 = getLast14Days();
+    const last14 = getLast14Days(currentOffset);
     const todayStr = getTodayString();
     
     const streak = computeStreak(habit.completedDates);

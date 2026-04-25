@@ -444,3 +444,80 @@ input:focus {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .empty-state { text-align: center; color: var(--text-secondary); padding: 3rem; font-style: italic; }
+
+/* Calendar Modal Specifics */
+.calendar-modal-content {
+    max-width: 600px;
+    padding: 3rem 2rem;
+}
+
+.calendar-header-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.habit-selector-nav, .calendar-month-nav {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.habit-selector-nav h3 {
+    margin-bottom: 0;
+    font-size: 1.5rem;
+    min-width: 200px;
+    text-align: center;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    padding-bottom: 0.5rem;
+    text-transform: uppercase;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    position: relative;
+}
+
+.calendar-day.empty {
+    background: transparent;
+    border: none;
+}
+
+.calendar-day.completed {
+    color: #fff;
+    font-weight: 600;
+    border-color: transparent;
+}
+
+.calendar-day.today {
+    border-color: var(--accent-blue);
+}
+
+.calendar-dot {
+    position: absolute;
+    bottom: 4px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+}
