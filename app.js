@@ -165,8 +165,11 @@ const migrateLocalToFirebase = async (uid) => {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
-        await batch.commit();
+        
+        // Clear local storage immediately so we don't create duplicates if commit hangs
         localStorage.removeItem(LOCAL_STORAGE_KEY);
+        
+        await batch.commit();
     } catch (e) {
         console.error("Migration failed", e);
     }
