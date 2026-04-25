@@ -281,7 +281,9 @@ authForm.addEventListener('submit', async (e) => {
 googleBtn.addEventListener('click', async () => {
     if (!isFirebaseInitialized) return;
     try {
-        await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        await auth.signInWithPopup(provider);
     } catch (error) {
         authError.textContent = error.message.replace('Firebase:', '');
     }
