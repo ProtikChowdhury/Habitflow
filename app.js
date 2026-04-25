@@ -135,7 +135,9 @@ const computeStreak = (completedDates) => {
             break;
         }
     }
-    return streak;
+    
+    // Only count as a streak if there are 2 or more consecutive days
+    return streak >= 2 ? streak : 0;
 };
 
 // ==== LOCAL STORAGE ====
