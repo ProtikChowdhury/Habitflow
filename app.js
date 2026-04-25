@@ -315,7 +315,7 @@ googleBtn.addEventListener('click', async () => {
 });
 
 userAvatar.addEventListener('click', async () => {
-    const confirmed = await showConfirmModal("Sign out and log in with a different account?");
+    const confirmed = await showConfirmModal("Sign Out?");
     if (confirmed) {
         if (auth) auth.signOut();
         authSection.classList.remove('hidden');
