@@ -46,6 +46,31 @@ const closeAddHabitBtn = document.getElementById('close-modal-btn');
 const addHabitForm = document.getElementById('add-habit-form');
 const newHabitInput = document.getElementById('new-habit-input');
 const habitsList = document.getElementById('habits-list');
+
+const confirmModal = document.getElementById('confirm-modal');
+const confirmModalMessage = document.getElementById('confirm-modal-message');
+const confirmModalCancel = document.getElementById('confirm-modal-cancel');
+const confirmModalOk = document.getElementById('confirm-modal-ok');
+
+let currentConfirmResolve = null;
+
+const showConfirmModal = (message) => {
+    return new Promise((resolve) => {
+        confirmModalMessage.textContent = message;
+        confirmModal.classList.remove('hidden');
+        currentConfirmResolve = resolve;
+    });
+};
+
+confirmModalCancel.addEventListener('click', () => {
+    confirmModal.classList.add('hidden');
+    if (currentConfirmResolve) currentConfirmResolve(false);
+});
+
+confirmModalOk.addEventListener('click', () => {
+    confirmModal.classList.add('hidden');
+    if (currentConfirmResolve) currentConfirmResolve(true);
+});
 const loadingSpinner = document.getElementById('loading-habits');
 
 let isSignup = false;
@@ -289,8 +314,9 @@ googleBtn.addEventListener('click', async () => {
     }
 });
 
-userAvatar.addEventListener('click', () => {
-    if (confirm("Sign out and log in with a different account?")) {
+userAvatar.addEventListener('click', async () => {
+    const confirmed = await showConfirmModal("Sign out and log in with a different account?");
+    if (confirmed) {
         if (auth) auth.signOut();
         authSection.classList.remove('hidden');
     }
@@ -354,7 +380,8 @@ const toggleHabitAction = async (id, dateStr, isCompleted) => {
 };
 
 const deleteHabitAction = async (id) => {
-    if (!confirm("Delete this habit?")) return;
+    const confirmed = await showConfirmModal("Delete this habit?");
+    if (!confirmed) return;
     if (currentUser) {
         try { await db.collection("habits").doc(id).delete(); } catch (e) { console.error(e); }
     } else {

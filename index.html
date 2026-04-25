@@ -39,7 +39,7 @@
         <!-- Main Dashboard Section -->
         <section id="dashboard-section" class="dark-panel">
             <header class="panel-header">
-                <button id="open-add-habit-btn" class="pill-btn primary-pill">+ Track My Habit</button>
+                <button id="open-add-habit-btn" class="pill-btn primary-pill">+ Add habit</button>
                 <div class="date-range-nav">
                     <button class="nav-arrow" disabled>&lt;</button>
                     <span id="date-range-display">Loading...</span>
@@ -103,6 +103,17 @@
                 <input type="text" id="new-habit-input" placeholder="What habit are you tracking?" required autocomplete="off">
                 <button type="submit" id="add-habit-submit-btn" class="pill-btn primary-pill block-btn">Add Habit</button>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal for confirmations -->
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-content dark-panel" style="text-align: center;">
+            <h3 id="confirm-modal-message" style="margin-bottom: 20px;">Are you sure?</h3>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="confirm-modal-cancel" class="pill-btn light-pill" style="flex: 1;">Cancel</button>
+                <button id="confirm-modal-ok" class="pill-btn primary-pill" style="flex: 1;">Confirm</button>
+            </div>
         </div>
     </div>
 </body>
