@@ -241,12 +241,12 @@ if (isFirebaseInitialized) {
         }
     }, 2000);
 
-    auth.onAuthStateChanged(async (user) => {
+    auth.onAuthStateChanged((user) => {
         authResolved = true;
         clearTimeout(authTimeout);
         if (user) {
             currentUser = user;
-            await migrateLocalToFirebase(user.uid);
+            migrateLocalToFirebase(user.uid).catch(e => console.error("Background migration error", e));
             setCloudMode();
             authSection.classList.add('hidden');
         } else {
