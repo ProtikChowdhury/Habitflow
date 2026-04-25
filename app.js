@@ -543,9 +543,11 @@ const renderCalendar = () => {
         const isCompleted = habit.completedDates.includes(dateStr);
         const isToday = dateStr === todayStr;
         
+        // We use data attributes for easy access in the click handler
         html += `
             <div class="calendar-day ${isCompleted ? 'completed' : ''} ${isToday ? 'today' : ''}" 
-                 style="${isCompleted ? `background-color: ${habit.color}44; border-color: ${habit.color};` : ''}">
+                 data-date="${dateStr}"
+                 style="${isCompleted ? `background-color: ${habit.color}44; border-color: ${habit.color}; cursor: pointer;` : 'cursor: pointer;'}">
                 ${day}
                 ${isCompleted ? `<div class="calendar-dot" style="background-color: ${habit.color}"></div>` : ''}
             </div>
@@ -553,6 +555,22 @@ const renderCalendar = () => {
     }
 
     calendarGrid.innerHTML = html;
+
+    // Add click listeners to days
+    calendarGrid.querySelectorAll('.calendar-day:not(.empty)').forEach(dayEl => {
+        dayEl.addEventListener('click', async () => {
+            const dateStr = dayEl.dataset.date;
+            const habit = (currentUser ? currentHabitsList : getLocalHabits()).find(h => (h.id || h.userId + h.createdAt) === currentCalendarHabitId);
+            const isCurrentlyCompleted = habit.completedDates.includes(dateStr);
+            
+            await toggleHabitAction(currentCalendarHabitId, dateStr, !isCurrentlyCompleted);
+            
+            // If local mode, we need to manually refresh the calendar
+            if (!currentUser) {
+                renderCalendar();
+            }
+        });
+    });
 };
 
 const renderLocalHabits = () => {
@@ -601,6 +619,11 @@ const subscribeToHabits = () => {
                 currentHabitsList.push(data);
                 appendHabitToDOM(docSnap.id, data);
             });
+
+            // If calendar is open, refresh it
+            if (!calendarModal.classList.contains('hidden')) {
+                renderCalendar();
+            }
         },
         (error) => {
             snapshotResolved = true;
@@ -643,13 +666,15 @@ const appendHabitToDOM = (id, habit) => {
 
     // 3. Trophy (Total)
     const trophyCol = document.createElement('div');
-    trophyCol.className = 'stat-col trophy';
+    trophyCol.className = 'stat-col trophy has-tooltip';
+    trophyCol.setAttribute('data-tooltip', 'Total Done');
     trophyCol.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10c1.7 0 3 1.3 3 3v2c0 2.8-2.2 5-5 5H9c-2.8 0-5-2.2-5-5V7c0-1.7 1.3-3 3-3z"/></svg> <span>${total}</span>`;
     li.appendChild(trophyCol);
 
     // 4. Flame (Streak)
     const flameCol = document.createElement('div');
-    flameCol.className = 'stat-col flame';
+    flameCol.className = 'stat-col flame has-tooltip';
+    flameCol.setAttribute('data-tooltip', 'Current Streak');
     flameCol.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> <span>${streak}</span>`;
     li.appendChild(flameCol);
 
