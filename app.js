@@ -402,8 +402,22 @@ const subscribeToHabits = () => {
     loadingSpinner.style.display = 'block';
     const q = db.collection("habits").where("userId", "==", currentUser.uid).orderBy("createdAt", "asc");
 
+    let snapshotResolved = false;
+    const snapshotTimeout = setTimeout(() => {
+        if (!snapshotResolved) {
+            console.warn("Firestore snapshot resolution timed out. Falling back to local mode.");
+            loadingSpinner.style.display = 'none';
+            if (currentUnsubscribe) { currentUnsubscribe(); currentUnsubscribe = null; }
+            currentUser = null;
+            if (auth) auth.signOut();
+            setLocalMode();
+        }
+    }, 2000);
+
     currentUnsubscribe = q.onSnapshot(
         (snapshot) => {
+            snapshotResolved = true;
+            clearTimeout(snapshotTimeout);
             loadingSpinner.style.display = 'none';
             habitsList.innerHTML = '';
             if (snapshot.empty) {
@@ -413,6 +427,8 @@ const subscribeToHabits = () => {
             snapshot.forEach((docSnap) => appendHabitToDOM(docSnap.id, docSnap.data()));
         },
         (error) => {
+            snapshotResolved = true;
+            clearTimeout(snapshotTimeout);
             console.error("Error fetching habits from cloud. Falling back to local mode.", error);
             loadingSpinner.style.display = 'none';
             
