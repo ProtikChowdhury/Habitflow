@@ -39,7 +39,10 @@
         <!-- Main Dashboard Section -->
         <section id="dashboard-section" class="dark-panel">
             <header class="panel-header">
-                <button id="open-add-habit-btn" class="pill-btn primary-pill">+ Add habit</button>
+                <div style="display: flex; gap: 10px;">
+                    <button id="open-add-habit-btn" class="pill-btn primary-pill">+ Add habit</button>
+                    <button id="view-archive-btn" class="pill-btn light-pill">Archived</button>
+                </div>
                 <div class="date-range-nav">
                     <button id="prev-date-range" class="nav-arrow">&lt;</button>
                     <span id="date-range-display">Loading...</span>
@@ -110,10 +113,11 @@
     <div id="confirm-modal" class="modal hidden">
         <div class="modal-content dark-panel" style="text-align: center;">
             <h3 id="confirm-modal-message" style="margin-bottom: 20px;">Are you sure?</h3>
-            <div style="display: flex; gap: 10px; justify-content: center;">
+            <div id="confirm-modal-buttons" style="display: flex; gap: 10px; justify-content: center;">
                 <button id="confirm-modal-cancel" class="pill-btn light-pill" style="flex: 1;">Cancel</button>
                 <button id="confirm-modal-archive" class="pill-btn primary-pill" style="flex: 1;">Archive</button>
                 <button id="confirm-modal-delete" class="pill-btn light-pill" style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #fca5a5; border-color: rgba(239, 68, 68, 0.3);">Delete</button>
+                <button id="confirm-modal-ok" class="pill-btn primary-pill" style="flex: 1;">Confirm</button>
             </div>
         </div>
     </div>
@@ -136,6 +140,17 @@
             </div>
             <div id="calendar-grid-container" class="calendar-grid">
                 <!-- Calendar days will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Archived Habits -->
+    <div id="archive-modal" class="modal hidden">
+        <div class="modal-content dark-panel" style="max-width: 500px;">
+            <button id="close-archive-btn" class="close-btn">✕</button>
+            <h3>Archived Habits</h3>
+            <div id="archived-habits-list" class="habits-list">
+                <!-- Archived habits injected here -->
             </div>
         </div>
     </div>

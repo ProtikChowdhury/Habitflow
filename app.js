@@ -54,6 +54,12 @@ const confirmModalMessage = document.getElementById('confirm-modal-message');
 const confirmModalCancel = document.getElementById('confirm-modal-cancel');
 const confirmModalArchive = document.getElementById('confirm-modal-archive');
 const confirmModalDelete = document.getElementById('confirm-modal-delete');
+const confirmModalOk = document.getElementById('confirm-modal-ok');
+
+const viewArchiveBtn = document.getElementById('view-archive-btn');
+const archiveModal = document.getElementById('archive-modal');
+const closeArchiveBtn = document.getElementById('close-archive-btn');
+const archivedHabitsList = document.getElementById('archived-habits-list');
 
 const calendarModal = document.getElementById('calendar-modal');
 const closeCalendarBtn = document.getElementById('close-calendar-btn');
@@ -67,9 +73,16 @@ const nextMonthBtn = document.getElementById('calendar-next-month');
 
 let currentConfirmResolve = null;
 
-const showConfirmModal = (message) => {
+const showConfirmModal = (message, type = 'confirm') => {
     return new Promise((resolve) => {
         confirmModalMessage.textContent = message;
+        
+        // Setup buttons
+        confirmModalCancel.classList.add('show');
+        if (confirmModalArchive) confirmModalArchive.classList.toggle('show', type === 'delete');
+        if (confirmModalDelete) confirmModalDelete.classList.toggle('show', type === 'delete');
+        if (confirmModalOk) confirmModalOk.classList.toggle('show', type === 'confirm');
+
         confirmModal.classList.remove('hidden');
         currentConfirmResolve = resolve;
     });
@@ -93,6 +106,13 @@ if (confirmModalDelete) {
         if (currentConfirmResolve) currentConfirmResolve('delete');
     });
 }
+
+if (confirmModalOk) {
+    confirmModalOk.addEventListener('click', () => {
+        confirmModal.classList.add('hidden');
+        if (currentConfirmResolve) currentConfirmResolve('confirm');
+    });
+}
 const loadingSpinner = document.getElementById('loading-habits');
 
 let isSignup = false;
@@ -106,6 +126,7 @@ let currentOffset = 0; // Days back from today
 let calendarViewDate = new Date();
 let currentCalendarHabitId = null;
 let currentHabitsList = []; // Local copy for navigation
+let currentAllHabits = []; // All habits including archived
 
 // ==== UTILS ====
 const pad = (n) => String(n).padStart(2, '0');
@@ -312,6 +333,55 @@ nextMonthBtn.addEventListener('click', () => {
     renderCalendar();
 });
 
+viewArchiveBtn.addEventListener('click', () => {
+    archiveModal.classList.remove('hidden');
+    renderArchivedHabits();
+});
+
+closeArchiveBtn.addEventListener('click', () => {
+    archiveModal.classList.add('hidden');
+});
+
+const unarchiveHabitAction = async (id) => {
+    if (currentUser) {
+        try { await db.collection("habits").doc(id).update({ archived: false }); } catch (e) { console.error(e); }
+    } else {
+        let habits = getLocalHabits();
+        const h = habits.find(h => h.id === id);
+        if (h) h.archived = false;
+        saveLocalHabits(habits);
+        renderLocalHabits();
+        renderArchivedHabits();
+    }
+};
+
+const renderArchivedHabits = () => {
+    archivedHabitsList.innerHTML = '';
+    const habits = currentUser ? currentAllHabits.filter(h => h.archived) : getLocalHabits().filter(h => h.archived);
+    
+    if (habits.length === 0) {
+        archivedHabitsList.innerHTML = '<div class="empty-state">No archived habits.</div>';
+        return;
+    }
+
+    habits.forEach(h => {
+        const item = document.createElement('div');
+        item.className = 'habit-item';
+        item.style.gridTemplateColumns = '1fr 40px';
+        item.innerHTML = `
+            <div class="habit-info">
+                <div class="color-dot" style="background-color: ${h.color}"></div>
+                <span class="habit-text">${h.task}</span>
+            </div>
+            <div class="unarchive-action" title="Unarchive" style="cursor:pointer; opacity: 0.6; display: flex; align-items: center; justify-content: center;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+            </div>
+        `;
+        item.querySelector('.unarchive-action').addEventListener('click', () => unarchiveHabitAction(h.id || h.userId + h.createdAt));
+        archivedHabitsList.appendChild(item);
+    });
+};
+
 const navigateHabit = (dir) => {
     const habits = currentUser ? currentHabitsList : getLocalHabits();
     const index = habits.findIndex(h => (h.id || h.userId + h.createdAt) === currentCalendarHabitId);
@@ -413,8 +483,8 @@ googleBtn.addEventListener('click', async () => {
 });
 
 userAvatar.addEventListener('click', async () => {
-    const confirmed = await showConfirmModal("Sign Out?");
-    if (confirmed) {
+    const result = await showConfirmModal("Sign Out?", "confirm");
+    if (result === 'confirm') {
         if (auth) auth.signOut();
         authSection.classList.remove('hidden');
     }
@@ -492,7 +562,7 @@ const archiveHabitAction = async (id) => {
 let pendingDeleteTimeouts = {};
 
 const deleteHabitAction = async (id) => {
-    const action = await showConfirmModal("Archive or delete this habit?");
+    const action = await showConfirmModal("Archive or delete this habit?", "delete");
     if (action === 'cancel' || !action) return;
     
     if (action === 'archive') {
@@ -666,14 +736,18 @@ const subscribeToHabits = () => {
             loadingSpinner.style.display = 'none';
             habitsList.innerHTML = '';
             currentHabitsList = [];
+            currentAllHabits = [];
             if (snapshot.empty) {
                 habitsList.innerHTML = `<div class="empty-state">No habits tracked yet. Start by adding one!</div>`;
                 return;
             }
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
-                if (data.archived) return;
                 data.id = docSnap.id;
+                currentAllHabits.push(data);
+                
+                if (data.archived) return;
+                
                 currentHabitsList.push(data);
                 appendHabitToDOM(docSnap.id, data);
             });

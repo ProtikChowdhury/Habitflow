@@ -646,3 +646,34 @@ input:focus {
 .toast-btn:hover {
     filter: brightness(1.2);
 }
+
+/* Archive Modal List */
+#archived-habits-list {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 5px;
+    margin-top: 1rem;
+}
+
+#archived-habits-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+#archived-habits-list::-webkit-scrollbar-thumb {
+    background: var(--panel-border);
+    border-radius: 10px;
+}
+
+/* Confirm Modal Button Toggles */
+#confirm-modal-buttons button {
+    display: none;
+}
+
+#confirm-modal-buttons button.show {
+    display: block;
+}
+
+.unarchive-action:hover {
+    color: var(--primary-blue);
+    opacity: 1;
+}
