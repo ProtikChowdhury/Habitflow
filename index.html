@@ -112,7 +112,8 @@
             <h3 id="confirm-modal-message" style="margin-bottom: 20px;">Are you sure?</h3>
             <div style="display: flex; gap: 10px; justify-content: center;">
                 <button id="confirm-modal-cancel" class="pill-btn light-pill" style="flex: 1;">Cancel</button>
-                <button id="confirm-modal-ok" class="pill-btn primary-pill" style="flex: 1;">Confirm</button>
+                <button id="confirm-modal-archive" class="pill-btn primary-pill" style="flex: 1;">Archive</button>
+                <button id="confirm-modal-delete" class="pill-btn light-pill" style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #fca5a5; border-color: rgba(239, 68, 68, 0.3);">Delete</button>
             </div>
         </div>
     </div>
@@ -137,6 +138,12 @@
                 <!-- Calendar days will be injected here -->
             </div>
         </div>
+    </div>
+
+    <!-- Undo Toast -->
+    <div id="undo-toast" class="toast">
+        <span id="toast-message">Habit deleted.</span>
+        <button id="undo-btn" class="toast-btn">Undo</button>
     </div>
 </body>
 

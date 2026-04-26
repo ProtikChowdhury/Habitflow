@@ -52,7 +52,8 @@ const habitsList = document.getElementById('habits-list');
 const confirmModal = document.getElementById('confirm-modal');
 const confirmModalMessage = document.getElementById('confirm-modal-message');
 const confirmModalCancel = document.getElementById('confirm-modal-cancel');
-const confirmModalOk = document.getElementById('confirm-modal-ok');
+const confirmModalArchive = document.getElementById('confirm-modal-archive');
+const confirmModalDelete = document.getElementById('confirm-modal-delete');
 
 const calendarModal = document.getElementById('calendar-modal');
 const closeCalendarBtn = document.getElementById('close-calendar-btn');
@@ -76,13 +77,22 @@ const showConfirmModal = (message) => {
 
 confirmModalCancel.addEventListener('click', () => {
     confirmModal.classList.add('hidden');
-    if (currentConfirmResolve) currentConfirmResolve(false);
+    if (currentConfirmResolve) currentConfirmResolve('cancel');
 });
 
-confirmModalOk.addEventListener('click', () => {
-    confirmModal.classList.add('hidden');
-    if (currentConfirmResolve) currentConfirmResolve(true);
-});
+if (confirmModalArchive) {
+    confirmModalArchive.addEventListener('click', () => {
+        confirmModal.classList.add('hidden');
+        if (currentConfirmResolve) currentConfirmResolve('archive');
+    });
+}
+
+if (confirmModalDelete) {
+    confirmModalDelete.addEventListener('click', () => {
+        confirmModal.classList.add('hidden');
+        if (currentConfirmResolve) currentConfirmResolve('delete');
+    });
+}
 const loadingSpinner = document.getElementById('loading-habits');
 
 let isSignup = false;
@@ -467,17 +477,63 @@ const toggleHabitAction = async (id, dateStr, isCompleted) => {
     }
 };
 
-const deleteHabitAction = async (id) => {
-    const confirmed = await showConfirmModal("Delete this habit?");
-    if (!confirmed) return;
+const archiveHabitAction = async (id) => {
     if (currentUser) {
-        try { await db.collection("habits").doc(id).delete(); } catch (e) { console.error(e); }
+        try { await db.collection("habits").doc(id).update({ archived: true }); } catch (e) { console.error(e); }
     } else {
         let habits = getLocalHabits();
-        habits = habits.filter(h => h.id !== id);
+        const h = habits.find(h => h.id === id);
+        if (h) h.archived = true;
         saveLocalHabits(habits);
         renderLocalHabits();
     }
+};
+
+let pendingDeleteTimeouts = {};
+
+const deleteHabitAction = async (id) => {
+    const action = await showConfirmModal("Archive or delete this habit?");
+    if (action === 'cancel' || !action) return;
+    
+    if (action === 'archive') {
+        await archiveHabitAction(id);
+        return;
+    }
+
+    const habitEl = habitsList.querySelector(`li[data-id="${id}"]`);
+    if (habitEl) habitEl.style.display = 'none';
+
+    const undoToast = document.getElementById('undo-toast');
+    const undoBtn = document.getElementById('undo-btn');
+    
+    undoToast.classList.add('show');
+    
+    const newUndoBtn = undoBtn.cloneNode(true);
+    undoBtn.parentNode.replaceChild(newUndoBtn, undoBtn);
+    
+    let cancelled = false;
+    newUndoBtn.addEventListener('click', () => {
+        cancelled = true;
+        undoToast.classList.remove('show');
+        if (habitEl) habitEl.style.display = '';
+        clearTimeout(pendingDeleteTimeouts[id]);
+        delete pendingDeleteTimeouts[id];
+    });
+
+    pendingDeleteTimeouts[id] = setTimeout(async () => {
+        undoToast.classList.remove('show');
+        if (cancelled) return;
+        delete pendingDeleteTimeouts[id];
+        
+        if (currentUser) {
+            try { await db.collection("habits").doc(id).delete(); } catch (e) { console.error(e); }
+        } else {
+            let habits = getLocalHabits();
+            habits = habits.filter(h => h.id !== id);
+            saveLocalHabits(habits);
+        }
+        if (habitEl && habitEl.parentNode) habitEl.parentNode.removeChild(habitEl);
+    }, 5000);
 };
 
 // ==== RENDERING ====
@@ -486,8 +542,9 @@ const renderChartHeader = () => {
     const chartHeader = document.getElementById('chart-header');
     if (!chartHeader) return;
     
-    // Grid: drag(1) + habitname(1) + trophy(1) + flame(1) = 4 empty columns before days
+    // Grid: drag(1) + archive(1) + habitname(1) + trophy(1) + flame(1) = 5 empty columns before days
     let html = `
+        <div class="header-empty"></div>
         <div class="header-empty"></div>
         <div class="header-empty"></div>
         <div class="header-empty"></div>
@@ -576,7 +633,7 @@ const renderCalendar = () => {
 const renderLocalHabits = () => {
     renderChartHeader();
     habitsList.innerHTML = '';
-    const habits = getLocalHabits();
+    const habits = getLocalHabits().filter(h => !h.archived);
     currentHabitsList = habits;
     if (habits.length === 0) {
         habitsList.innerHTML = `<div class="empty-state">No habits tracked yet. Start by adding one!</div>`;
@@ -615,6 +672,7 @@ const subscribeToHabits = () => {
             }
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
+                if (data.archived) return;
                 data.id = docSnap.id;
                 currentHabitsList.push(data);
                 appendHabitToDOM(docSnap.id, data);
@@ -649,6 +707,7 @@ const appendHabitToDOM = (id, habit) => {
 
     const li = document.createElement('li');
     li.className = 'habit-item';
+    li.setAttribute('data-id', id);
 
     // 1. Delete Button
     const delCol = document.createElement('div');
@@ -657,6 +716,14 @@ const appendHabitToDOM = (id, habit) => {
     delCol.addEventListener('click', () => deleteHabitAction(id));
     delCol.title = "Delete this habit";
     li.appendChild(delCol);
+
+    // 1.5. Archive Button
+    const archiveCol = document.createElement('div');
+    archiveCol.className = 'archive-action';
+    archiveCol.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="2" ry="2"></rect><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"></path><path d="M10 13h4"></path></svg>`;
+    archiveCol.addEventListener('click', () => archiveHabitAction(id));
+    archiveCol.title = "Archive this habit";
+    li.appendChild(archiveCol);
 
     // 2. Habit Info (Dot + Text)
     const infoCol = document.createElement('div');

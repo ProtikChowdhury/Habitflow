@@ -256,15 +256,16 @@ body {
 /* Chart Grid Setup */
 /* 
 Columns:
-1: drag handle (24px)
-2: Habit Name + Dot (1fr)
-3: Trophy Stat (40px)
-4: Flame Stat (40px)
-5-18: 14 Days (26px each)
+1: delete action (24px)
+2: archive action (24px)
+3: Habit Name + Dot (1fr)
+4: Trophy Stat (40px)
+5: Flame Stat (48px)
+6-19: 14 Days (26px each)
 */
 .chart-header, .habit-item {
     display: grid;
-    grid-template-columns: 24px 1fr 40px 48px repeat(14, 26px);
+    grid-template-columns: 24px 24px 1fr 40px 48px repeat(14, 26px);
     gap: 0.4rem;
     align-items: center;
 }
@@ -319,7 +320,7 @@ Columns:
     background: rgba(255, 255, 255, 0.05);
 }
 
-.delete-action {
+.delete-action, .archive-action {
     opacity: 0.3;
     display: flex;
     align-items: center;
@@ -332,6 +333,11 @@ Columns:
 .delete-action:hover {
     opacity: 1;
     color: #ef4444; /* bright red */
+}
+
+.archive-action:hover {
+    opacity: 1;
+    color: var(--accent-blue);
 }
 
 /* Habit Text & Dot */
@@ -597,4 +603,46 @@ input:focus {
     width: 4px;
     height: 4px;
     border-radius: 50%;
+}
+
+/* Toast Notification */
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #1e293b;
+    color: #f8fafc;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid var(--panel-border);
+    pointer-events: none;
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.toast-btn {
+    background: var(--primary-blue);
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.2s;
+}
+
+.toast-btn:hover {
+    filter: brightness(1.2);
 }
