@@ -171,9 +171,9 @@ const updateDateRangeDisplay = () => {
     const lastDate = new Date(last + 'T12:00:00');
 
     if (firstDate.getFullYear() === lastDate.getFullYear()) {
-        dateRangeDisplay.textContent = `${getMonthAbbr(first)} ${getDayNum(first)} - ${getMonthAbbr(last)} ${getDayNum(last)}, ${firstDate.getFullYear()}`;
+        dateRangeDisplay.textContent = `${getMonthAbbr(first)} ${getDayNum(first)} - ${getMonthAbbr(last)} ${getDayNum(last)}`;
     } else {
-        dateRangeDisplay.textContent = `${getMonthAbbr(first)} ${getDayNum(first)}, ${firstDate.getFullYear()} - ${getMonthAbbr(last)} ${getDayNum(last)}, ${lastDate.getFullYear()}`;
+        dateRangeDisplay.textContent = `${getMonthAbbr(first)} ${getDayNum(first)} - ${getMonthAbbr(last)} ${getDayNum(last)}`;
     }
 
     // Enable/disable arrows based on offset
@@ -828,19 +828,22 @@ const renderMainHabits = () => {
 const subscribeToHabits = () => {
     renderChartHeader();
     loadingSpinner.style.display = 'block';
-    const q = db.collection("habits").where("userId", "==", currentUser.uid).orderBy("createdAt", "asc");
+    const q = db.collection("habits").where("userId", "==", currentUser.uid);
 
     let snapshotResolved = false;
     const snapshotTimeout = setTimeout(() => {
         if (!snapshotResolved) {
             console.warn("Firestore snapshot resolution timed out. Falling back to local mode.");
             loadingSpinner.style.display = 'none';
-            if (currentUnsubscribe) { currentUnsubscribe(); currentUnsubscribe = null; }
-            currentUser = null;
-            if (auth) auth.signOut();
-            setLocalMode();
+            // Only fall back if we don't have any cached data already
+            if (currentHabitsList.length === 0) {
+                if (currentUnsubscribe) { currentUnsubscribe(); currentUnsubscribe = null; }
+                currentUser = null;
+                if (auth) auth.signOut();
+                setLocalMode();
+            }
         }
-    }, 2000);
+    }, 5000);
 
     currentUnsubscribe = q.onSnapshot(
         (snapshot) => {
@@ -852,6 +855,8 @@ const subscribeToHabits = () => {
             currentAllHabits = [];
             if (snapshot.empty) {
                 habitsList.innerHTML = `<div class="empty-state">No habits tracked yet. Start by adding one!</div>`;
+                currentHabitsList = [];
+                currentAllHabits = [];
                 return;
             }
             snapshot.forEach((docSnap) => {
@@ -994,6 +999,10 @@ const initSwipeActions = (li, id) => {
     li.insertBefore(archiveIndicator, content);
 
     li.addEventListener('touchstart', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.closest('button')) {
+            isSwiping = false;
+            return;
+        }
         startX = e.touches[0].clientX;
         isSwiping = true;
         content.style.transition = 'none';

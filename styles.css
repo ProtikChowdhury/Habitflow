@@ -200,6 +200,8 @@ body {
     margin-bottom: 2rem;
     padding-bottom: 1.5rem;
     border-bottom: 1px solid var(--panel-border);
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
 .pill-btn {
@@ -263,11 +265,20 @@ Columns:
 5: Flame Stat (48px)
 6-19: 14 Days (26px each)
 */
-.chart-header, .habit-item {
+.chart-header, .swipe-content {
     display: grid;
     grid-template-columns: 24px 24px 1fr 40px 48px repeat(14, 26px);
     gap: 0.4rem;
     align-items: center;
+}
+
+.habit-item {
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-y;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    transition: background 0.2s;
 }
 
 .chart-header {
@@ -310,10 +321,7 @@ Columns:
 }
 
 .habit-item {
-    background: rgba(255, 255, 255, 0.02);
-    padding: 0.75rem 1rem;
-    border-radius: 12px;
-    transition: background 0.2s;
+    padding: 0; /* Remove padding from li, move to swipe-content if needed */
 }
 
 .habit-item:hover {
@@ -494,7 +502,14 @@ input:focus {
     animation: spin 1s linear infinite; margin: 2rem auto; display: none;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.empty-state { text-align: center; color: var(--text-secondary); padding: 3rem; font-style: italic; }
+.empty-state { 
+    text-align: center; 
+    color: var(--text-secondary); 
+    padding: 4rem 2rem; 
+    font-style: italic;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
 
 /* Custom Themed Tooltips */
 .has-tooltip {
@@ -715,10 +730,7 @@ input:focus {
 }
 
 .swipe-content {
-    display: grid;
-    grid-template-columns: inherit;
-    gap: inherit;
-    align-items: center;
+    padding: 0.75rem 1rem;
     width: 100%;
     height: 100%;
     transition: transform 0.1s ease-out;
@@ -779,11 +791,37 @@ input:focus {
         display: none;
     }
 
+    .panel-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1.5rem;
+        padding-bottom: 1.5rem;
+    }
+
+    .panel-header > div:first-child {
+        display: flex;
+        justify-content: center;
+        gap: 0.75rem;
+    }
+
+    .date-range-nav {
+        justify-content: center;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 0.75rem;
+        border-radius: 16px;
+        border: 1px solid var(--panel-border);
+    }
+
     /* Mobile Grid: Name + 2 Stats + 3 Days */
-    .chart-header, .habit-item {
-        grid-template-columns: 1fr 36px 36px repeat(3, 32px);
-        gap: 0.3rem;
-        padding: 0.75rem 0.5rem;
+    .chart-header, .swipe-content {
+        grid-template-columns: 1fr 40px 48px repeat(3, 26px);
+        gap: 0.5rem;
+        padding: 0.85rem 0.75rem;
+    }
+
+    .chart-header {
+        padding: 0 0.75rem 1rem 0.75rem;
     }
 
     /* Hide desktop actions */
