@@ -76,7 +76,7 @@ let currentConfirmResolve = null;
 const showConfirmModal = (message, type = 'confirm') => {
     return new Promise((resolve) => {
         confirmModalMessage.textContent = message;
-        
+
         // Setup buttons
         confirmModalCancel.classList.add('show');
         if (confirmModalArchive) confirmModalArchive.classList.toggle('show', type === 'delete');
@@ -131,6 +131,7 @@ let currentAllHabits = []; // All habits including archived
 // ==== UTILS ====
 const pad = (n) => String(n).padStart(2, '0');
 const getDateString = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+const getHabitId = (h) => h.id || (h.userId + h.createdAt);
 
 const getTodayString = () => getDateString(new Date());
 
@@ -160,17 +161,17 @@ const updateDateRangeDisplay = () => {
     const dates = getLast14Days(currentOffset);
     const first = dates[0];
     const last = dates[dates.length - 1];
-    
+
     // Check if we are in the same year, else show years for both
     const firstDate = new Date(first + 'T12:00:00');
     const lastDate = new Date(last + 'T12:00:00');
-    
+
     if (firstDate.getFullYear() === lastDate.getFullYear()) {
         dateRangeDisplay.textContent = `${getMonthAbbr(first)} ${getDayNum(first)} - ${getMonthAbbr(last)} ${getDayNum(last)}, ${firstDate.getFullYear()}`;
     } else {
         dateRangeDisplay.textContent = `${getMonthAbbr(first)} ${getDayNum(first)}, ${firstDate.getFullYear()} - ${getMonthAbbr(last)} ${getDayNum(last)}, ${lastDate.getFullYear()}`;
     }
-    
+
     // Enable/disable arrows based on offset
     const prevBtn = document.querySelector('.nav-arrow:first-child');
     const nextBtn = document.querySelector('.nav-arrow:last-child');
@@ -201,10 +202,10 @@ const migrateHabitData = (h) => {
 
 const computeStreak = (completedDates) => {
     const today = new Date();
-    today.setHours(0,0,0,0);
+    today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     let streak = 0;
     let currDate = new Date(today);
 
@@ -218,9 +219,9 @@ const computeStreak = (completedDates) => {
     if (completedDates.includes(getDateString(currDate))) {
         streak++;
     }
-    
+
     currDate.setDate(currDate.getDate() - 1);
-    
+
     while (true) {
         if (completedDates.includes(getDateString(currDate))) {
             streak++;
@@ -229,7 +230,7 @@ const computeStreak = (completedDates) => {
             break;
         }
     }
-    
+
     // Only count as a streak if there are 2 or more consecutive days
     return streak >= 2 ? streak : 0;
 };
@@ -251,7 +252,7 @@ const migrateLocalToFirebase = async (uid) => {
     try {
         const batch = db.batch();
         habits.forEach(h => {
-            const migrated = migrateHabitData({...h});
+            const migrated = migrateHabitData({ ...h });
             const newRef = db.collection("habits").doc();
             batch.set(newRef, {
                 userId: uid,
@@ -261,10 +262,10 @@ const migrateLocalToFirebase = async (uid) => {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
-        
+
         // Clear local storage immediately so we don't create duplicates if commit hangs
         localStorage.removeItem(LOCAL_STORAGE_KEY);
-        
+
         await batch.commit();
     } catch (e) {
         console.error("Migration failed", e);
@@ -343,28 +344,81 @@ closeArchiveBtn.addEventListener('click', () => {
 });
 
 const unarchiveHabitAction = async (id) => {
+    // 1. Find the habit in our local data
+    let habit;
     if (currentUser) {
-        try { await db.collection("habits").doc(id).update({ archived: false }); } catch (e) { console.error(e); }
+        habit = currentAllHabits.find(h => getHabitId(h) === id);
     } else {
-        let habits = getLocalHabits();
-        const h = habits.find(h => h.id === id);
+        const habits = getLocalHabits();
+        habit = habits.find(h => getHabitId(h) === id);
+    }
+
+    if (!habit) return;
+
+    // 2. Optimistic UI: Mark as unarchived locally first
+    habit.archived = false;
+
+    // Also update currentHabitsList so the main dashboard renders immediately
+    if (currentUser) {
+        if (!currentHabitsList.find(h => getHabitId(h) === id)) {
+            currentHabitsList.push(habit);
+        }
+    }
+
+    // 3. Find the archive list DOM element and remove it instantly
+    const itemEl = Array.from(archivedHabitsList.querySelectorAll('.habit-item'))
+        .find(el => el.querySelector('.unarchive-action')?.dataset.id === id);
+
+    if (itemEl) {
+        // Animate out then remove from DOM directly (no re-render avoids snapshot race)
+        itemEl.classList.add('removing');
+        setTimeout(() => {
+            if (itemEl.parentNode) itemEl.parentNode.removeChild(itemEl);
+            // Show empty state if no more archived habits in the DOM
+            if (archivedHabitsList.querySelectorAll('.habit-item').length === 0) {
+                archivedHabitsList.innerHTML = '<div class="empty-state">No archived habits.</div>';
+            }
+        }, 300);
+    }
+
+    // 4. Immediately update the main habit list
+    if (currentUser) {
+        renderMainHabits();
+    } else {
+        renderLocalHabits();
+    }
+
+    // 5. Persist change
+    if (currentUser) {
+        try {
+            await db.collection("habits").doc(id).update({ archived: false });
+        } catch (e) {
+            console.error(e);
+            // Rollback on error
+            habit.archived = true;
+            currentHabitsList = currentHabitsList.filter(h => getHabitId(h) !== id);
+            renderArchivedHabits();
+            renderMainHabits();
+        }
+    } else {
+        const habits = getLocalHabits();
+        const h = habits.find(h => getHabitId(h) === id);
         if (h) h.archived = false;
         saveLocalHabits(habits);
-        renderLocalHabits();
-        renderArchivedHabits();
     }
 };
 
 const renderArchivedHabits = () => {
     archivedHabitsList.innerHTML = '';
     const habits = currentUser ? currentAllHabits.filter(h => h.archived) : getLocalHabits().filter(h => h.archived);
-    
+
     if (habits.length === 0) {
         archivedHabitsList.innerHTML = '<div class="empty-state">No archived habits.</div>';
         return;
     }
 
     habits.forEach(h => {
+        const hId = getHabitId(h);
         const item = document.createElement('div');
         item.className = 'habit-item';
         item.style.gridTemplateColumns = '1fr 40px';
@@ -373,11 +427,11 @@ const renderArchivedHabits = () => {
                 <div class="color-dot" style="background-color: ${h.color}"></div>
                 <span class="habit-text">${h.task}</span>
             </div>
-            <div class="unarchive-action" title="Unarchive" style="cursor:pointer; opacity: 0.6; display: flex; align-items: center; justify-content: center;">
+            <div class="unarchive-action has-tooltip" data-id="${hId}" data-tooltip="Restore Habit" title="Unarchive" style="cursor:pointer; opacity: 0.6; display: flex; align-items: center; justify-content: center;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
             </div>
         `;
-        item.querySelector('.unarchive-action').addEventListener('click', () => unarchiveHabitAction(h.id || h.userId + h.createdAt));
+        item.querySelector('.unarchive-action').addEventListener('click', () => unarchiveHabitAction(hId));
         archivedHabitsList.appendChild(item);
     });
 };
@@ -406,11 +460,11 @@ const loadInitialLocalState = () => {
 const setCloudMode = () => {
     loginSyncBtn.classList.add('hidden');
     loggedInState.classList.remove('hidden');
-    
+
     if (userAvatar && currentUser.photoURL) {
         userAvatar.src = currentUser.photoURL;
     }
-    
+
     subscribeToHabits();
 };
 
@@ -548,14 +602,41 @@ const toggleHabitAction = async (id, dateStr, isCompleted) => {
 };
 
 const archiveHabitAction = async (id) => {
+    // 1. Optimistic UI
+    const habitEl = habitsList.querySelector(`li[data-id="${id}"]`);
+    if (habitEl) {
+        habitEl.classList.add('removing');
+    }
+
     if (currentUser) {
-        try { await db.collection("habits").doc(id).update({ archived: true }); } catch (e) { console.error(e); }
+        const h = currentAllHabits.find(h => getHabitId(h) === id);
+        if (h) h.archived = true;
+
+        // Optimistically remove from currentHabitsList and re-render main dashboard
+        currentHabitsList = currentHabitsList.filter(h => getHabitId(h) !== id);
+        setTimeout(() => {
+            renderMainHabits();
+        }, 300);
+
+        try {
+            await db.collection("habits").doc(id).update({ archived: true });
+        } catch (e) {
+            console.error(e);
+            if (h) {
+                h.archived = false;
+                currentHabitsList.push(h);
+                renderMainHabits();
+            }
+        }
     } else {
         let habits = getLocalHabits();
-        const h = habits.find(h => h.id === id);
+        const h = habits.find(h => getHabitId(h) === id);
         if (h) h.archived = true;
         saveLocalHabits(habits);
-        renderLocalHabits();
+
+        setTimeout(() => {
+            renderLocalHabits();
+        }, 300);
     }
 };
 
@@ -564,7 +645,7 @@ let pendingDeleteTimeouts = {};
 const deleteHabitAction = async (id) => {
     const action = await showConfirmModal("Archive or delete this habit?", "delete");
     if (action === 'cancel' || !action) return;
-    
+
     if (action === 'archive') {
         await archiveHabitAction(id);
         return;
@@ -575,12 +656,12 @@ const deleteHabitAction = async (id) => {
 
     const undoToast = document.getElementById('undo-toast');
     const undoBtn = document.getElementById('undo-btn');
-    
+
     undoToast.classList.add('show');
-    
+
     const newUndoBtn = undoBtn.cloneNode(true);
     undoBtn.parentNode.replaceChild(newUndoBtn, undoBtn);
-    
+
     let cancelled = false;
     newUndoBtn.addEventListener('click', () => {
         cancelled = true;
@@ -594,7 +675,7 @@ const deleteHabitAction = async (id) => {
         undoToast.classList.remove('show');
         if (cancelled) return;
         delete pendingDeleteTimeouts[id];
-        
+
         if (currentUser) {
             try { await db.collection("habits").doc(id).delete(); } catch (e) { console.error(e); }
         } else {
@@ -611,7 +692,7 @@ const renderChartHeader = () => {
     updateDateRangeDisplay();
     const chartHeader = document.getElementById('chart-header');
     if (!chartHeader) return;
-    
+
     // Grid: drag(1) + archive(1) + habitname(1) + trophy(1) + flame(1) = 5 empty columns before days
     let html = `
         <div class="header-empty"></div>
@@ -620,7 +701,7 @@ const renderChartHeader = () => {
         <div class="header-empty"></div>
         <div class="header-empty"></div>
     `;
-    
+
     const last14 = getLast14Days(currentOffset);
     last14.forEach(d => {
         html += `
@@ -669,7 +750,7 @@ const renderCalendar = () => {
         const dateStr = getDateString(new Date(year, month, day));
         const isCompleted = habit.completedDates.includes(dateStr);
         const isToday = dateStr === todayStr;
-        
+
         // We use data attributes for easy access in the click handler
         html += `
             <div class="calendar-day ${isCompleted ? 'completed' : ''} ${isToday ? 'today' : ''}" 
@@ -689,9 +770,9 @@ const renderCalendar = () => {
             const dateStr = dayEl.dataset.date;
             const habit = (currentUser ? currentHabitsList : getLocalHabits()).find(h => (h.id || h.userId + h.createdAt) === currentCalendarHabitId);
             const isCurrentlyCompleted = habit.completedDates.includes(dateStr);
-            
+
             await toggleHabitAction(currentCalendarHabitId, dateStr, !isCurrentlyCompleted);
-            
+
             // If local mode, we need to manually refresh the calendar
             if (!currentUser) {
                 renderCalendar();
@@ -710,6 +791,17 @@ const renderLocalHabits = () => {
         return;
     }
     habits.forEach(h => appendHabitToDOM(h.id, h));
+};
+
+// Re-render the main dashboard from currentHabitsList (used for cloud mode optimistic UI)
+const renderMainHabits = () => {
+    renderChartHeader();
+    habitsList.innerHTML = '';
+    if (currentHabitsList.length === 0) {
+        habitsList.innerHTML = `<div class="empty-state">No habits tracked yet. Start by adding one!</div>`;
+        return;
+    }
+    currentHabitsList.forEach(h => appendHabitToDOM(getHabitId(h), h));
 };
 
 const subscribeToHabits = () => {
@@ -745,9 +837,9 @@ const subscribeToHabits = () => {
                 const data = docSnap.data();
                 data.id = docSnap.id;
                 currentAllHabits.push(data);
-                
+
                 if (data.archived) return;
-                
+
                 currentHabitsList.push(data);
                 appendHabitToDOM(docSnap.id, data);
             });
@@ -756,13 +848,17 @@ const subscribeToHabits = () => {
             if (!calendarModal.classList.contains('hidden')) {
                 renderCalendar();
             }
+            // If archive modal is open, refresh it
+            if (!archiveModal.classList.contains('hidden')) {
+                renderArchivedHabits();
+            }
         },
         (error) => {
             snapshotResolved = true;
             clearTimeout(snapshotTimeout);
             console.error("Error fetching habits from cloud. Falling back to local mode.", error);
             loadingSpinner.style.display = 'none';
-            
+
             // Revert state back to local mode if blocked by browser/ad-blocker
             currentUser = null;
             if (auth) auth.signOut();
@@ -775,7 +871,7 @@ const appendHabitToDOM = (id, habit) => {
     habit = migrateHabitData(habit);
     const last14 = getLast14Days(currentOffset);
     const todayStr = getTodayString();
-    
+
     const streak = computeStreak(habit.completedDates);
     const total = habit.completedDates.length;
 
@@ -785,7 +881,8 @@ const appendHabitToDOM = (id, habit) => {
 
     // 1. Delete Button
     const delCol = document.createElement('div');
-    delCol.className = 'delete-action';
+    delCol.className = 'delete-action has-tooltip';
+    delCol.setAttribute('data-tooltip', 'Delete Habit');
     delCol.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
     delCol.addEventListener('click', () => deleteHabitAction(id));
     delCol.title = "Delete this habit";
@@ -793,7 +890,8 @@ const appendHabitToDOM = (id, habit) => {
 
     // 1.5. Archive Button
     const archiveCol = document.createElement('div');
-    archiveCol.className = 'archive-action';
+    archiveCol.className = 'archive-action has-tooltip';
+    archiveCol.setAttribute('data-tooltip', 'Archive Habit');
     archiveCol.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="2" ry="2"></rect><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"></path><path d="M10 13h4"></path></svg>`;
     archiveCol.addEventListener('click', () => archiveHabitAction(id));
     archiveCol.title = "Archive this habit";
@@ -823,10 +921,10 @@ const appendHabitToDOM = (id, habit) => {
     last14.forEach(dateStr => {
         const isToday = dateStr === todayStr;
         const isChecked = habit.completedDates.includes(dateStr);
-        
+
         const checkWrap = document.createElement('label');
         checkWrap.className = `checkbox-wrapper ${isToday ? 'today-col' : ''}`;
-        
+
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.checked = isChecked;
