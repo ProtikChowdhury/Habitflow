@@ -121,7 +121,10 @@ let currentUnsubscribe = null;
 
 const LOCAL_STORAGE_KEY = 'zen_habits_local';
 const HABIT_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#0ea5e9'];
-const DAYS_TO_SHOW = 14;
+
+const isMobile = () => window.innerWidth <= 768;
+const getDaysToShow = () => isMobile() ? 3 : 14;
+
 let currentOffset = 0; // Days back from today
 let calendarViewDate = new Date();
 let currentCalendarHabitId = null;
@@ -136,8 +139,9 @@ const getHabitId = (h) => h.id || (h.userId + h.createdAt);
 const getTodayString = () => getDateString(new Date());
 
 const getLast14Days = (offset = 0) => {
+    const days = getDaysToShow();
     const dates = [];
-    for (let i = DAYS_TO_SHOW - 1; i >= 0; i--) {
+    for (let i = days - 1; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i - offset);
         dates.push(getDateString(d));
@@ -298,17 +302,25 @@ openAddHabitBtn.addEventListener('click', () => {
     newHabitInput.focus();
 });
 
+const mobileAddHabitBtn = document.getElementById('mobile-add-habit-btn');
+if (mobileAddHabitBtn) {
+    mobileAddHabitBtn.addEventListener('click', () => {
+        addHabitModal.classList.remove('hidden');
+        newHabitInput.focus();
+    });
+}
+
 closeAddHabitBtn.addEventListener('click', () => {
     addHabitModal.classList.add('hidden');
 });
 
 prevDateBtn.addEventListener('click', () => {
-    currentOffset += 14;
+    currentOffset += getDaysToShow();
     refreshDashboard();
 });
 
 nextDateBtn.addEventListener('click', () => {
-    currentOffset = Math.max(0, currentOffset - 14);
+    currentOffset = Math.max(0, currentOffset - getDaysToShow());
     refreshDashboard();
 });
 
@@ -693,17 +705,26 @@ const renderChartHeader = () => {
     const chartHeader = document.getElementById('chart-header');
     if (!chartHeader) return;
 
+    const lastDates = getLast14Days(currentOffset);
+    const mobile = isMobile();
+
     // Grid: drag(1) + archive(1) + habitname(1) + trophy(1) + flame(1) = 5 empty columns before days
-    let html = `
-        <div class="header-empty"></div>
-        <div class="header-empty"></div>
+    // On mobile we hide the first two (delete/archive)
+    let html = '';
+    if (!mobile) {
+        html += `
+            <div class="header-empty"></div>
+            <div class="header-empty"></div>
+        `;
+    }
+    
+    html += `
         <div class="header-empty"></div>
         <div class="header-empty"></div>
         <div class="header-empty"></div>
     `;
 
-    const last14 = getLast14Days(currentOffset);
-    last14.forEach(d => {
+    lastDates.forEach(d => {
         html += `
         <div class="header-day">
             <span class="day-name">${getDayAbbr(d)}</span>
@@ -869,7 +890,7 @@ const subscribeToHabits = () => {
 
 const appendHabitToDOM = (id, habit) => {
     habit = migrateHabitData(habit);
-    const last14 = getLast14Days(currentOffset);
+    const visibleDates = getLast14Days(currentOffset);
     const todayStr = getTodayString();
 
     const streak = computeStreak(habit.completedDates);
@@ -879,46 +900,50 @@ const appendHabitToDOM = (id, habit) => {
     li.className = 'habit-item';
     li.setAttribute('data-id', id);
 
-    // 1. Delete Button
+    // Create a wrapper for content that will be swiped
+    const swipeContent = document.createElement('div');
+    swipeContent.className = 'swipe-content';
+
+    // 1. Delete Button (Desktop only)
     const delCol = document.createElement('div');
     delCol.className = 'delete-action has-tooltip';
     delCol.setAttribute('data-tooltip', 'Delete Habit');
     delCol.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
     delCol.addEventListener('click', () => deleteHabitAction(id));
     delCol.title = "Delete this habit";
-    li.appendChild(delCol);
+    swipeContent.appendChild(delCol);
 
-    // 1.5. Archive Button
+    // 1.5. Archive Button (Desktop only)
     const archiveCol = document.createElement('div');
     archiveCol.className = 'archive-action has-tooltip';
     archiveCol.setAttribute('data-tooltip', 'Archive Habit');
     archiveCol.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="2" ry="2"></rect><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"></path><path d="M10 13h4"></path></svg>`;
     archiveCol.addEventListener('click', () => archiveHabitAction(id));
     archiveCol.title = "Archive this habit";
-    li.appendChild(archiveCol);
+    swipeContent.appendChild(archiveCol);
 
     // 2. Habit Info (Dot + Text)
     const infoCol = document.createElement('div');
     infoCol.className = 'habit-info';
     infoCol.innerHTML = `<div class="color-dot" style="background-color: ${habit.color}"></div><span class="habit-text">${habit.task}</span>`;
-    li.appendChild(infoCol);
+    swipeContent.appendChild(infoCol);
 
     // 3. Trophy (Total)
     const trophyCol = document.createElement('div');
     trophyCol.className = 'stat-col trophy has-tooltip';
     trophyCol.setAttribute('data-tooltip', 'Total Done');
     trophyCol.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10c1.7 0 3 1.3 3 3v2c0 2.8-2.2 5-5 5H9c-2.8 0-5-2.2-5-5V7c0-1.7 1.3-3 3-3z"/></svg> <span>${total}</span>`;
-    li.appendChild(trophyCol);
+    swipeContent.appendChild(trophyCol);
 
     // 4. Flame (Streak)
     const flameCol = document.createElement('div');
     flameCol.className = 'stat-col flame has-tooltip';
     flameCol.setAttribute('data-tooltip', 'Current Streak');
     flameCol.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> <span>${streak}</span>`;
-    li.appendChild(flameCol);
+    swipeContent.appendChild(flameCol);
 
-    // 5-18. 14 Days Checkboxes
-    last14.forEach(dateStr => {
+    // 5-X. Dynamic Days Checkboxes
+    visibleDates.forEach(dateStr => {
         const isToday = dateStr === todayStr;
         const isChecked = habit.completedDates.includes(dateStr);
 
@@ -932,15 +957,84 @@ const appendHabitToDOM = (id, habit) => {
 
         const circle = document.createElement('span');
         circle.className = `circle-mark active-color`;
-        // Apply color dynamically when checked
         if (isChecked) {
             circle.style.backgroundColor = habit.color;
         }
 
         checkWrap.appendChild(checkbox);
         checkWrap.appendChild(circle);
-        li.appendChild(checkWrap);
+        swipeContent.appendChild(checkWrap);
     });
 
+    li.appendChild(swipeContent);
     habitsList.appendChild(li);
+
+    if (isMobile()) {
+        initSwipeActions(li, id);
+    }
 };
+
+const initSwipeActions = (li, id) => {
+    const content = li.querySelector('.swipe-content');
+    let startX = 0;
+    let currentX = 0;
+    let isSwiping = false;
+    const threshold = 100;
+
+    const deleteIndicator = document.createElement('div');
+    deleteIndicator.className = 'swipe-indicator delete';
+    deleteIndicator.innerHTML = 'Delete';
+    deleteIndicator.style.opacity = '0';
+    li.insertBefore(deleteIndicator, content);
+
+    const archiveIndicator = document.createElement('div');
+    archiveIndicator.className = 'swipe-indicator archive';
+    archiveIndicator.innerHTML = 'Archive';
+    archiveIndicator.style.opacity = '0';
+    li.insertBefore(archiveIndicator, content);
+
+    li.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        isSwiping = true;
+        content.style.transition = 'none';
+    }, { passive: true });
+
+    li.addEventListener('touchmove', (e) => {
+        if (!isSwiping) return;
+        currentX = e.touches[0].clientX - startX;
+        
+        // Visual feedback
+        content.style.transform = `translateX(${currentX}px)`;
+        
+        if (currentX > 0) {
+            deleteIndicator.style.opacity = Math.min(currentX / threshold, 1);
+            archiveIndicator.style.opacity = '0';
+        } else {
+            archiveIndicator.style.opacity = Math.min(-currentX / threshold, 1);
+            deleteIndicator.style.opacity = '0';
+        }
+    }, { passive: true });
+
+    li.addEventListener('touchend', () => {
+        isSwiping = false;
+        content.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+        
+        if (currentX > threshold) {
+            // Swipe Right -> Delete
+            deleteHabitAction(id);
+        } else if (currentX < -threshold) {
+            // Swipe Left -> Archive
+            archiveHabitAction(id);
+        }
+        
+        // Reset
+        content.style.transform = 'translateX(0)';
+        deleteIndicator.style.opacity = '0';
+        archiveIndicator.style.opacity = '0';
+        currentX = 0;
+    });
+};
+
+window.addEventListener('resize', () => {
+    refreshDashboard();
+});
