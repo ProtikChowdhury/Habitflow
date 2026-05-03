@@ -713,15 +713,9 @@ const renderChartHeader = () => {
 
     // Grid: drag(1) + archive(1) + habitname(1) + trophy(1) + flame(1) = 5 empty columns before days
     // On mobile we hide the first two (delete/archive)
-    let html = '';
-    if (!mobile) {
-        html += `
-            <div class="header-empty"></div>
-            <div class="header-empty"></div>
-        `;
-    }
-    
-    html += `
+    let html = `
+        <div class="header-empty"></div>
+        <div class="header-empty"></div>
         <div class="header-empty"></div>
         <div class="header-empty"></div>
         <div class="header-empty"></div>

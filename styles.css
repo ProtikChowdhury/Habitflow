@@ -32,6 +32,7 @@ body {
     align-items: center;
     padding-top: 4rem;
     position: relative;
+    overflow-x: hidden;
 }
 
 /* Page Branding */
@@ -242,22 +243,43 @@ body {
 .date-range-nav {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 1rem;
     color: var(--text-secondary);
     font-size: 0.95rem;
     font-weight: 500;
     white-space: nowrap;
+    background: transparent;
+    border: none;
 }
 
 .nav-arrow {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
     cursor: pointer;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s ease;
     touch-action: manipulation;
     -webkit-user-select: none;
     user-select: none;
+}
+
+.nav-arrow:hover:not(:disabled) {
+    background: var(--accent-blue);
+    color: #1e3a8a;
+    border-color: var(--accent-blue);
+}
+
+.nav-arrow:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
 }
 
 /* Chart Grid Setup */
@@ -816,10 +838,9 @@ input:focus {
     .date-range-nav {
         justify-content: center;
         width: 100%;
-        background: rgba(255, 255, 255, 0.05);
-        padding: 0.6rem 0.75rem;
-        border-radius: 16px;
-        border: 1px solid var(--panel-border);
+        background: transparent;
+        padding: 0.6rem 0;
+        border: none;
         font-size: 0.85rem;
     }
 
@@ -831,20 +852,19 @@ input:focus {
         text-align: center;
     }
 
-    /* Mobile Grid: Name + 2 Stats + 3 Days */
+    /* Mobile Grid: 2 actions + Name + 2 Stats + 3 Days */
     .chart-header, .swipe-content {
-        grid-template-columns: 1fr 40px 48px repeat(3, 32px);
-        gap: 0.5rem;
-        padding: 0.85rem 0.75rem;
+        grid-template-columns: 24px 24px 1fr 32px 36px repeat(3, 32px);
+        gap: 0.3rem;
+        padding: 0.85rem 0.5rem;
     }
 
     .chart-header {
-        padding: 0 0.75rem 1rem 0.75rem;
+        padding: 0 0.5rem 1rem 0.5rem;
     }
 
-    /* Hide desktop actions */
     .delete-action, .archive-action {
-        display: none;
+        display: flex;
     }
 
     .stat-col span {
