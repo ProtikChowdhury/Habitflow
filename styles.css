@@ -867,7 +867,7 @@ input:focus {
         height: 24px;
     }
 
-    .header-empty {
-        display: none;
+    .habits-list {
+        padding-bottom: 90px;
     }
 }
