@@ -970,6 +970,75 @@ const appendHabitToDOM = (id, habit) => {
 
     li.appendChild(swipeContent);
     habitsList.appendChild(li);
+
+    if (isMobile()) {
+        initSwipeActions(li, id);
+    }
+};
+
+const initSwipeActions = (li, id) => {
+    const content = li.querySelector('.swipe-content');
+    let startX = 0;
+    let currentX = 0;
+    let isSwiping = false;
+    const threshold = 100;
+
+    const deleteIndicator = document.createElement('div');
+    deleteIndicator.className = 'swipe-indicator delete';
+    deleteIndicator.innerHTML = 'Delete';
+    deleteIndicator.style.opacity = '0';
+    li.insertBefore(deleteIndicator, content);
+
+    const archiveIndicator = document.createElement('div');
+    archiveIndicator.className = 'swipe-indicator archive';
+    archiveIndicator.innerHTML = 'Archive';
+    archiveIndicator.style.opacity = '0';
+    li.insertBefore(archiveIndicator, content);
+
+    li.addEventListener('touchstart', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.closest('button')) {
+            isSwiping = false;
+            return;
+        }
+        startX = e.touches[0].clientX;
+        isSwiping = true;
+        content.style.transition = 'none';
+    }, { passive: true });
+
+    li.addEventListener('touchmove', (e) => {
+        if (!isSwiping) return;
+        currentX = e.touches[0].clientX - startX;
+        
+        // Visual feedback
+        content.style.transform = `translateX(${currentX}px)`;
+        
+        if (currentX > 0) {
+            deleteIndicator.style.opacity = Math.min(currentX / threshold, 1);
+            archiveIndicator.style.opacity = '0';
+        } else {
+            archiveIndicator.style.opacity = Math.min(-currentX / threshold, 1);
+            deleteIndicator.style.opacity = '0';
+        }
+    }, { passive: true });
+
+    li.addEventListener('touchend', () => {
+        isSwiping = false;
+        content.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+        
+        if (currentX > threshold) {
+            // Swipe Right -> Delete
+            deleteHabitAction(id);
+        } else if (currentX < -threshold) {
+            // Swipe Left -> Archive
+            archiveHabitAction(id);
+        }
+        
+        // Reset
+        content.style.transform = 'translateX(0)';
+        deleteIndicator.style.opacity = '0';
+        archiveIndicator.style.opacity = '0';
+        currentX = 0;
+    });
 };
 
 
