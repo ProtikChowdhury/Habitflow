@@ -433,7 +433,10 @@ const renderArchivedHabits = () => {
         const hId = getHabitId(h);
         const item = document.createElement('div');
         item.className = 'habit-item';
+        item.style.display = 'grid';
         item.style.gridTemplateColumns = '1fr 40px';
+        item.style.alignItems = 'center';
+        item.style.padding = '0.75rem 1rem';
         item.innerHTML = `
             <div class="habit-info">
                 <div class="color-dot" style="background-color: ${h.color}"></div>
