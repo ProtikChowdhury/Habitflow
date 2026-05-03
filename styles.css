@@ -302,7 +302,6 @@ Columns:
 .habit-item {
     position: relative;
     overflow: hidden;
-    touch-action: pan-y;
     background: rgba(255, 255, 255, 0.02);
     border-radius: 12px;
     transition: background 0.2s;
@@ -753,46 +752,14 @@ input:focus {
     transform: scale(0.9);
 }
 
-/* Swipe Interaction Classes */
-.habit-item {
-    position: relative;
-    overflow: hidden;
-    touch-action: pan-y; /* Allow vertical scroll, handle horizontal via JS */
-}
-
+/* Habit Content Wrapper */
 .swipe-content {
     padding: 0.75rem 1rem;
     width: 100%;
     height: 100%;
-    transition: transform 0.1s ease-out;
     background: inherit;
     z-index: 2;
     position: relative;
-}
-
-.swipe-indicator {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    padding: 0 1.5rem;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: white;
-    z-index: 1;
-    pointer-events: none;
-}
-
-.swipe-indicator.archive {
-    background: #3b82f6;
-    justify-content: flex-end;
-}
-
-.swipe-indicator.delete {
-    background: #ef4444;
-    justify-content: flex-start;
 }
 
 /* Media Queries for Mobile Screens */
