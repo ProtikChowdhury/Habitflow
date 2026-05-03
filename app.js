@@ -479,6 +479,17 @@ const setCloudMode = () => {
     if (userAvatar && currentUser.photoURL) {
         userAvatar.src = currentUser.photoURL;
     }
+    
+    let emailSpan = document.getElementById('user-email-display');
+    if (!emailSpan) {
+        emailSpan = document.createElement('span');
+        emailSpan.id = 'user-email-display';
+        emailSpan.style.fontSize = '0.75rem';
+        emailSpan.style.color = 'var(--text-secondary)';
+        emailSpan.style.marginRight = '8px';
+        loggedInState.insertBefore(emailSpan, userAvatar);
+    }
+    emailSpan.textContent = `${currentUser.email} | Proj: ${firebaseConfig.projectId} | UID: ${currentUser.uid.substring(0, 4)}` || 'Logged In';
 
     subscribeToHabits();
 };
@@ -545,7 +556,11 @@ googleBtn.addEventListener('click', async () => {
     try {
         const provider = new firebase.auth.GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
-        await auth.signInWithPopup(provider);
+        if (isMobile()) {
+            await auth.signInWithRedirect(provider);
+        } else {
+            await auth.signInWithPopup(provider);
+        }
     } catch (error) {
         authError.textContent = error.message.replace('Firebase:', '');
     }
@@ -830,23 +845,21 @@ const subscribeToHabits = () => {
     let snapshotResolved = false;
     const snapshotTimeout = setTimeout(() => {
         if (!snapshotResolved) {
-            console.warn("Firestore snapshot resolution timed out. Falling back to local mode.");
-            loadingSpinner.style.display = 'none';
-            // Only fall back if we don't have any cached data already
-            if (currentHabitsList.length === 0) {
-                if (currentUnsubscribe) { currentUnsubscribe(); currentUnsubscribe = null; }
-                currentUser = null;
-                if (auth) auth.signOut();
-                setLocalMode();
-            }
+            console.warn("Firestore snapshot resolution is taking longer than expected. Continuing to wait...");
+            // Do NOT fall back to local mode or sign out on slow networks
         }
-    }, 5000);
+    }, 10000);
 
-    currentUnsubscribe = q.onSnapshot(
+    currentUnsubscribe = q.onSnapshot({ includeMetadataChanges: true },
         (snapshot) => {
             snapshotResolved = true;
             clearTimeout(snapshotTimeout);
             loadingSpinner.style.display = 'none';
+            
+            const emailSpan = document.getElementById('user-email-display');
+            if (emailSpan && currentUser) {
+                emailSpan.textContent = `${currentUser.email} | Proj: ${firebaseConfig.projectId} | UID: ${currentUser.uid.substring(0, 4)}` + (snapshot.metadata.fromCache ? " (Offline)" : "");
+            }
             habitsList.innerHTML = '';
             currentHabitsList = [];
             currentAllHabits = [];
@@ -879,13 +892,13 @@ const subscribeToHabits = () => {
         (error) => {
             snapshotResolved = true;
             clearTimeout(snapshotTimeout);
-            console.error("Error fetching habits from cloud. Falling back to local mode.", error);
+            console.error("Error fetching habits from cloud.", error);
             loadingSpinner.style.display = 'none';
 
-            // Revert state back to local mode if blocked by browser/ad-blocker
-            currentUser = null;
-            if (auth) auth.signOut();
-            setLocalMode();
+            // Don't log the user out on network errors, just show an error message
+            if (currentHabitsList.length === 0) {
+                habitsList.innerHTML = `<div class="empty-state">Network error connecting to sync server. Please check your connection or ad-blocker.</div>`;
+            }
         }
     );
 };
